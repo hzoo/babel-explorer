@@ -9,6 +9,8 @@ import { gzipSize } from "../gzip";
 window.babel = Babel;
 
 function getTargets(config) {
+  if (!config.presets) return "-";
+
   let targets = config?.presets.filter(
     p => Array.isArray(p) && p[0] === "@babel/preset-env"
   )[0][1].targets;

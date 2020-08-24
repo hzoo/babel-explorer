@@ -27,15 +27,7 @@ const CONFIG = [
       ],
       "@babel/preset-react",
     ],
-    plugins: [
-      [
-        "@babel/plugin-transform-runtime",
-        {
-          useESModules: true,
-          version: "7.100.0",
-        },
-      ],
-    ],
+    plugins: [["@babel/plugin-transform-runtime"]],
   },
   {
     presets: [
@@ -51,15 +43,7 @@ const CONFIG = [
       ],
       "@babel/preset-react",
     ],
-    plugins: [
-      [
-        "@babel/plugin-transform-runtime",
-        {
-          useESModules: true,
-          version: "7.100.0",
-        },
-      ],
-    ],
+    plugins: [["@babel/plugin-transform-runtime"]],
   },
 ];
 const PLUGIN = `export default function customPlugin(babel) {
