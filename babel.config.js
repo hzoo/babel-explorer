@@ -72,6 +72,19 @@ module.exports = function (api) {
   ];
 
   switch (env) {
+    case "sandbox":
+      convertESM = false;
+      // envOpts.modules = false;
+      // envOpts.debug = true;
+      envOpts.targets = {
+        node: "12",
+      };
+      // envOpts.targets = {
+      //   chrome: "84",
+      //   firefox: "79",
+      //   safari: "13.1",
+      // };
+      break;
     // Configs used during bundling builds.
     case "standalone":
       includeRegeneratorRuntime = true;
@@ -170,6 +183,49 @@ module.exports = function (api) {
       needsPolyfillsForOldNode && pluginPolyfillsOldNode,
     ].filter(Boolean),
     overrides: [
+      {
+        test: [/babel-plugin-/],
+        plugins: [
+          function (babel) {
+            const { types: t } = babel;
+
+            return {
+              name: "babel-internal-modify-replacewith",
+              visitor: {
+                // + replaceWithMultiple
+                // path.replaceWith(a) -> path.replaceWith(a, "name")
+                CallExpression(path, state) {
+                  if (
+                    path.node.callee.type === "MemberExpression" &&
+                    path.node.callee.property.type === "Identifier" &&
+                    ["replaceWith", "replaceWithMultiple"].some(
+                      a => a === path.node.callee.property.name
+                    )
+                  ) {
+                    const pluginName = normalize(state.filename).match(
+                      /babel-(plugin|helper)-((\w+-?)+)/
+                    )[2];
+                    // "C:\\Users\\babel\\packages\\babel-plugin-proposal-unicode-property-regex\\src\\index.js".match(/babel-(plugin|helper)-((\w+-?)+)/)
+                    // Array(4) [ "babel-plugin-proposal-unicode-property-regex", "plugin", "proposal-unicode-property-regex", "regex" ]
+                    path.node.arguments.push(
+                      t.arrayExpression([
+                        t.stringLiteral(pluginName),
+                        t.stringLiteral(
+                          `${normalize(state.filename).substr(
+                            normalize(state.filename).indexOf("babel-plugin-")
+                          )} (${path.node.loc.start.line}:${
+                            path.node.loc.start.column
+                          })`
+                        ),
+                      ])
+                    );
+                  }
+                },
+              },
+            };
+          },
+        ],
+      },
       {
         test: [
           "packages/babel-parser",

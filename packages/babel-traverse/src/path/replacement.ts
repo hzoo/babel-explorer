@@ -46,6 +46,7 @@ const hoistVariablesVisitor = {
 
 export function replaceWithMultiple<Nodes extends Array<t.Node>>(
   nodes: Nodes,
+  name: string,
 ): NodePath[] {
   // todo NodePaths
   this.resync();
@@ -56,6 +57,16 @@ export function replaceWithMultiple<Nodes extends Array<t.Node>>(
   pathCache.get(this.parent)?.delete(this.node);
   this.node = this.container[this.key] = null;
   const paths = this.insertAfter(nodes);
+
+  nodes.forEach(node => {
+    if (name) {
+      if (!node.babelPlugin) {
+        node.babelPlugin = [name];
+      } else {
+        node.babelPlugin.push(name);
+      }
+    }
+  });
 
   if (this.node) {
     this.requeue();
@@ -104,7 +115,11 @@ export function replaceWithSourceString(this: NodePath, replacement) {
  * Replace the current node with another.
  */
 
-export function replaceWith(this: NodePath, replacement: t.Node | NodePath) {
+export function replaceWith(
+  this: NodePath,
+  replacement: t.Node | NodePath,
+  name: string,
+) {
   this.resync();
 
   if (this.removed) {
@@ -171,6 +186,14 @@ export function replaceWith(this: NodePath, replacement: t.Node | NodePath) {
   if (oldNode) {
     t.inheritsComments(replacement, oldNode);
     t.removeComments(oldNode);
+  }
+
+  if (name) {
+    if (!replacement.babelPlugin) {
+      replacement.babelPlugin = [name];
+    } else {
+      replacement.babelPlugin.push(name);
+    }
   }
 
   // replace the node
