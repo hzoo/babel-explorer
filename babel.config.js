@@ -184,7 +184,7 @@ module.exports = function (api) {
     ].filter(Boolean),
     overrides: [
       {
-        test: [/babel-plugin-/],
+        test: [/(babel-plugin|babel-helper)-/],
         plugins: [
           function (babel) {
             const { types: t } = babel;
@@ -198,9 +198,12 @@ module.exports = function (api) {
                   if (
                     path.node.callee.type === "MemberExpression" &&
                     path.node.callee.property.type === "Identifier" &&
-                    ["replaceWith", "replaceWithMultiple"].some(
-                      a => a === path.node.callee.property.name
-                    )
+                    [
+                      "replaceWith",
+                      "replaceWithMultiple",
+                      "insertAfter",
+                      "insertBefore",
+                    ].some(a => a === path.node.callee.property.name)
                   ) {
                     const pluginName = normalize(state.filename).match(
                       /babel-(plugin|helper)-((\w+-?)+)/

@@ -10,10 +10,24 @@ import type Scope from "../scope";
  * Insert the provided nodes before the current one.
  */
 
-export function insertBefore(this: NodePath, nodes_: t.Node | t.Node[]) {
+export function insertBefore(
+  this: NodePath,
+  nodes_: t.Node | t.Node[],
+  name: string,
+) {
   this._assertUnremoved();
 
   const nodes = this._verifyNodeList(nodes_);
+
+  nodes.forEach(node => {
+    if (name) {
+      if (!node.babelPlugin) {
+        node.babelPlugin = [name];
+      } else {
+        node.babelPlugin.push(name);
+      }
+    }
+  });
 
   const { parentPath } = this;
 
@@ -98,10 +112,21 @@ export function _containerInsertAfter(this: NodePath, nodes) {
 export function insertAfter(
   this: NodePath,
   nodes_: t.Node | t.Node[],
+  name: string,
 ): NodePath[] {
   this._assertUnremoved();
 
   const nodes = this._verifyNodeList(nodes_);
+
+  nodes.forEach(node => {
+    if (name) {
+      if (!node.babelPlugin) {
+        node.babelPlugin = [name];
+      } else {
+        node.babelPlugin.push(name);
+      }
+    }
+  });
 
   const { parentPath } = this;
   if (

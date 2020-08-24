@@ -62,15 +62,16 @@ let proposalMap = {
   "transform-classes": "background: rgba(255, 0, 0, 0.2)",
   "proposal-optional-chaining": "background: rgba(44, 130, 201, 0.2)",
   "transform-template-literals": "background: rgba(24, 240, 57, 0.3)",
-  "react-jsx": "background: rgba(223, 125, 41, 0.2)",
+  "builder-react-jsx": "background: rgba(223, 125, 41, 0.2)",
   "transform-for-of": "background: rgba(21, 132, 196, 0.5)",
   "transform-parameters": "background: rgba(245, 218, 85, 0.2)",
   regenerator: "background: rgba(107, 231, 132, 0.2)",
-  "transform-async-to-generator": "background: rgba(107, 231, 132, 0.2)",
+  "transform-async-to-generator": "background: rgba(107, 231, 132, 0.5)",
   "transform-spread": "background: rgba(233, 212, 96, 0.2)",
   "transform-shorthand-properties": "background: rgba(42, 187, 155, 0.4)",
   "transform-arrow-functions": "background: rgba(42, 187, 155, 0.5)",
   "transform-destructuring": "background: rgba(42, 187, 155, 0.1)",
+  "transform-typescript": "background: rgba(42, 187, 155, 0.4)",
 };
 
 function CompiledOutput({

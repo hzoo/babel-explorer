@@ -3,8 +3,14 @@ import ReactDOM from "react-dom";
 import { App } from "./components/App";
 
 const SOURCE = `const foo = async (...a) => \`\${a?.b}\`;
+enum Direction {
+  Left,
+  Up,
+  Down,
+  Right
+}
 class A {
-  async a() {
+  a() {
     for (b of []) {
       \`a\${c?.[1_0_0_0_0]}\`;
       var z = [...f];
@@ -26,6 +32,16 @@ const CONFIG = [
         { loose: true, modules: false, shippedProposals: true },
       ],
       "@babel/preset-react",
+      [
+        "@babel/preset-typescript",
+        {
+          isTSX: true,
+          allExtensions: true,
+          allowDeclareFields: true,
+          allowNamespaces: true,
+          onlyRemoveTypeImports: true,
+        },
+      ],
     ],
     plugins: [["@babel/plugin-transform-runtime"]],
   },
@@ -42,6 +58,16 @@ const CONFIG = [
         },
       ],
       "@babel/preset-react",
+      [
+        "@babel/preset-typescript",
+        {
+          isTSX: true,
+          allExtensions: true,
+          allowDeclareFields: true,
+          allowNamespaces: true,
+          onlyRemoveTypeImports: true,
+        },
+      ],
     ],
     plugins: [["@babel/plugin-transform-runtime"]],
   },
