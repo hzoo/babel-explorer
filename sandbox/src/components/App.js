@@ -115,17 +115,24 @@ function CompiledOutput({
       },
     });
     if (node?.babelPlugin) {
-      window.sourceEditor.doc.setSelection(
-        window.sourceEditor.posFromIndex(node.babelPlugin[0].start),
-        window.sourceEditor.posFromIndex(node.babelPlugin[0].end)
-      );
+      const start = node.babelPlugin[0].start;
+      const end = node.babelPlugin[0].end;
+      if (!start || !end) {
+        console.warn(
+          `BUG: no start/end for ${JSON.stringify(debouncedCursor)}`
+        );
+        return;
+      }
+      const from = window.sourceEditor.posFromIndex(node.babelPlugin[0].start);
+      const to = window.sourceEditor.posFromIndex(node.babelPlugin[0].end);
+      window.sourceEditor.doc.setSelection(from, to, { scroll: false });
+      window.sourceEditor.scrollIntoView({ from, to }, window.innerHeight / 3);
     }
   }, [outputEditor, debouncedCursor, compiled.ast]);
 
   useEffect(() => {
     if (!outputEditor || !compiled.nodes) return;
     for (let node of compiled.nodes) {
-      console.log(node.babelPlugin);
       let highlightColor = proposalMap[node.babelPlugin[0]?.name];
       if (highlightColor) {
         outputEditor.doc.markText(
@@ -134,7 +141,7 @@ function CompiledOutput({
           { css: highlightColor }
         );
       } else {
-        console.log(node.babelPlugin[0].name);
+        console.warn(`UNHANDLED plugin-name ${node.babelPlugin[0].name}`);
         outputEditor.doc.markText(
           fixLoc(node.loc.start),
           fixLoc(node.loc.end),
@@ -212,7 +219,7 @@ function CompiledOutput({
           config={{ readOnly: true, lineWrapping: true }}
           isError={compiled?.error ?? false}
           getEditor={editor => {
-            window[`outputEditor${index}`] = editor;
+            window[outputEditor + String(index)] = editor;
             setOutputEditor(editor);
           }}
           onCursor={data => setCursor(data)}
