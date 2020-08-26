@@ -363,6 +363,7 @@ export default function convertFunctionRest(path) {
       }
     });
 
+    // node: rest
     target.insertBefore(loop);
   }
 

@@ -2,7 +2,7 @@ import React from "react";
 import ReactDOM from "react-dom";
 import { App } from "./components/App";
 
-const SOURCE = `const foo = async (...a) => \`\${a?.b}\`;
+const SOURCE = `const foo = (...a) => \`\${a?.b}\`;
 enum Direction {
   Left,
   Up,
@@ -43,7 +43,7 @@ const CONFIG = [
         },
       ],
     ],
-    plugins: [["@babel/plugin-transform-runtime"]],
+    plugins: [["@babel/plugin-transform-runtime", { useESModules: true }]],
   },
   {
     presets: [
@@ -69,7 +69,7 @@ const CONFIG = [
         },
       ],
     ],
-    plugins: [["@babel/plugin-transform-runtime"]],
+    plugins: [["@babel/plugin-transform-runtime", { useESModules: true }]],
   },
 ];
 const PLUGIN = `export default function customPlugin(babel) {

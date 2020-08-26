@@ -13,20 +13,14 @@ import type Scope from "../scope";
 export function insertBefore(
   this: NodePath,
   nodes_: t.Node | t.Node[],
-  name: string,
+  metadata: any,
 ) {
   this._assertUnremoved();
 
   const nodes = this._verifyNodeList(nodes_);
 
   nodes.forEach(node => {
-    if (name) {
-      if (!node.babelPlugin) {
-        node.babelPlugin = [name];
-      } else {
-        node.babelPlugin.push(name);
-      }
-    }
+    this.addMetadata(node, metadata);
   });
 
   const { parentPath } = this;
@@ -112,20 +106,14 @@ export function _containerInsertAfter(this: NodePath, nodes) {
 export function insertAfter(
   this: NodePath,
   nodes_: t.Node | t.Node[],
-  name: string,
+  metadata: any,
 ): NodePath[] {
   this._assertUnremoved();
 
   const nodes = this._verifyNodeList(nodes_);
 
   nodes.forEach(node => {
-    if (name) {
-      if (!node.babelPlugin) {
-        node.babelPlugin = [name];
-      } else {
-        node.babelPlugin.push(name);
-      }
-    }
+    this.addMetadata(node, metadata);
   });
 
   const { parentPath } = this;

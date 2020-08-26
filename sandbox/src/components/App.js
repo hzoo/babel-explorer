@@ -1,5 +1,6 @@
 import React, { useState, useCallback, useEffect } from "react";
 import * as Babel from "@babel/core";
+import traverse from "@babel/traverse";
 import styled, { css } from "styled-components";
 
 import { Editor } from "./Editor";
@@ -23,15 +24,13 @@ function getTargets(config) {
 }
 
 function mergeLoc(sourceAST, newAST, cb) {
+  sourceAST.start = newAST.start;
+  sourceAST.end = newAST.end;
+  sourceAST.loc = newAST.loc;
+
   for (let key of Object.keys(sourceAST)) {
     let value = sourceAST[key];
-    if (key === "start") {
-      sourceAST.start = newAST.start;
-    } else if (key === "end") {
-      sourceAST.end = newAST.end;
-    } else if (key === "loc") {
-      sourceAST.loc = newAST.loc;
-    } else if (Array.isArray(value)) {
+    if (Array.isArray(value)) {
       for (let i = 0; i < value.length; i++) {
         if (value[i] && typeof value[i] === "object") {
           if (value[i].babelPlugin) {
@@ -58,7 +57,7 @@ function fixLoc(loc) {
 
 let proposalMap = {
   "transform-numeric-separator": "background: rgba(42, 187, 155, 0.3)",
-  "transform-runtime": "background: rgba(42, 187, 155, 0.4)",
+  "transform-runtime": "background: rgba(42, 187, 155, 0.6)",
   "transform-classes": "background: rgba(255, 0, 0, 0.2)",
   "proposal-optional-chaining": "background: rgba(44, 130, 201, 0.2)",
   "transform-template-literals": "background: rgba(24, 240, 57, 0.3)",
@@ -80,16 +79,44 @@ function CompiledOutput({
   config,
   onConfigChange,
   removeConfig,
+  index,
 }) {
+  const [cursor, setCursor] = useState(null);
+  const debouncedCursor = useDebounce(cursor, 100);
   const [showConfig, toggleConfig] = useState(false);
   const [outputEditor, setOutputEditor] = useState(null);
-  const [compiled, setCompiled] = useState(null);
+  const [compiled, setCompiled] = useState({ nodes: [] });
   const [gzip, setGzip] = useState(null);
   const debouncedPlugin = useDebounce(customPlugin, 125);
 
-  if (outputEditor && compiled.nodes) {
+  useEffect(() => {
+    if (!outputEditor || !debouncedCursor) return;
+    if (window.sourceEditor.hasFocus()) return;
+    // Object { line: 0, ch: 2, sticky: "before", xRel: -4 }
+    let outputIndex = outputEditor.doc.indexFromPos(debouncedCursor);
+    let node;
+    traverse(compiled.ast, {
+      enter(path) {
+        if (outputIndex < path.node.start) {
+          path.skip();
+        } else if (outputIndex > path.node.end) {
+          path.skip();
+        } else if (path.node.babelPlugin) node = path.node;
+      },
+    });
+    if (node?.babelPlugin) {
+      window.sourceEditor.doc.setSelection(
+        window.sourceEditor.posFromIndex(node.babelPlugin[0].start),
+        window.sourceEditor.posFromIndex(node.babelPlugin[0].end)
+      );
+    }
+  }, [outputEditor, debouncedCursor, compiled.ast]);
+
+  useEffect(() => {
+    if (!outputEditor || !compiled.nodes) return;
     for (let node of compiled.nodes) {
-      let highlightColor = proposalMap[node.babelPlugin[0][0]];
+      console.log(JSON.stringify(node.babelPlugin));
+      let highlightColor = proposalMap[node.babelPlugin[0]?.name];
       if (highlightColor) {
         outputEditor.doc.markText(
           fixLoc(node.loc.start),
@@ -98,7 +125,7 @@ function CompiledOutput({
         );
       }
     }
-  }
+  }, [outputEditor, compiled.nodes]);
 
   useEffect(() => {
     try {
@@ -109,8 +136,6 @@ function CompiledOutput({
       );
       let newAST = Babel.parse(code);
       mergeLoc(ast, newAST, (value, loc) => {
-        if (value.babelPlugin)
-          console.log(JSON.stringify(value.babelPlugin), loc);
         let node = { ...value, loc };
         let added = nodes.some((existingNode, i) => {
           if (
@@ -133,8 +158,10 @@ function CompiledOutput({
         code,
         size: new Blob([code], { type: "text/plain" }).size,
         nodes,
+        ast,
       });
     } catch (e) {
+      console.warn(e.stack);
       setCompiled({
         code: e.message,
         error: true,
@@ -168,9 +195,10 @@ function CompiledOutput({
           config={{ readOnly: true, lineWrapping: true }}
           isError={compiled?.error ?? false}
           getEditor={editor => {
-            window.output = editor;
+            window[`outputEditor${index}`] = editor;
             setOutputEditor(editor);
           }}
+          onCursor={data => setCursor(data)}
         />
       </Column>
       <FileSize>
@@ -215,6 +243,7 @@ export const App = ({ defaultSource, defaultBabelConfig, defCustomPlugin }) => {
         customPlugin={enableCustomPlugin ? customPlugin : undefined}
         config={config}
         key={index}
+        index={index}
         onConfigChange={config => updateBabelConfig(config, index)}
         removeConfig={() => removeBabelConfig(index)}
       />
@@ -261,6 +290,9 @@ export const App = ({ defaultSource, defaultBabelConfig, defCustomPlugin }) => {
             value={source}
             onChange={val => setSource(val)}
             docName="source.js"
+            getEditor={editor => {
+              window.sourceEditor = editor;
+            }}
           />
           <FileSize>
             {size}b, {gzip}b
