@@ -7,6 +7,8 @@ function normalize(src) {
   return src.replace(/\//, pathUtils.sep);
 }
 
+const metadataPlugin = require("./sandbox/src/metadataPlugin");
+
 module.exports = function (api) {
   const env = api.env();
 
@@ -185,112 +187,7 @@ module.exports = function (api) {
     overrides: [
       {
         test: [/(babel-plugin|babel-helper)-/],
-        plugins: [
-          function (babel) {
-            const { types: t, template } = babel;
-
-            return {
-              name: "babel-internal-modify-replacewith",
-              visitor: {
-                // + replaceWithMultiple
-                // path.replaceWith(a) -> path.replaceWith(a, "name")
-                // TODO: handle nested MemberExpression like a.b.replaceWith
-                CallExpression(path, state) {
-                  if (
-                    path.node.callee.type === "MemberExpression" &&
-                    path.node.callee.property.type === "Identifier" &&
-                    [
-                      "replaceWith",
-                      "replaceWithMultiple",
-                      "insertAfter",
-                      "insertBefore",
-                      "addHelper",
-                    ].some(a => a === path.node.callee.property.name)
-                  ) {
-                    const pluginName = normalize(state.filename).match(
-                      /babel-(plugin|helper)-((\w+-?)+)/
-                    )[2];
-                    /*
-                      Allow specifying a node to get correct start/end
-                      (instead of defaulting to this.node).
-
-                      // node: rest
-                      target.insertBefore(loop);
-                    */
-                    const hasComment = path.parentPath.node.leadingComments;
-                    let comment;
-                    if (hasComment) {
-                      comment = hasComment[0].value.match(/node: (.*)/);
-                      if (comment) {
-                        comment = template.expression(comment[1])();
-                      }
-                    }
-                    // "C:\\Users\\babel\\packages\\babel-plugin-proposal-unicode-property-regex\\src\\index.js".match(/babel-(plugin|helper)-((\w+-?)+)/)
-                    // {
-                    //   name: "unicode-property-regex",
-                    //   file: "babel-plugin-proposal-unicode-property-regex\\src\\index.js",
-                    //   start: 0,
-                    //   end: 1,
-                    // }
-                    const props = [
-                      t.objectProperty(
-                        t.identifier("name"),
-                        t.stringLiteral(pluginName)
-                      ),
-                      t.objectProperty(
-                        t.identifier("file"),
-                        t.stringLiteral(
-                          `${normalize(state.filename).substr(
-                            normalize(state.filename).indexOf(pluginName)
-                          )} (${path.node.loc.start.line}:${
-                            path.node.loc.start.column
-                          })`
-                        )
-                      ),
-                    ];
-                    const start = comment
-                      ? t.objectProperty(
-                          t.identifier("start"),
-                          t.memberExpression(comment, t.identifier("start"))
-                        )
-                      : path.scope.hasBinding("path")
-                      ? t.objectProperty(
-                          t.identifier("start"),
-                          t.memberExpression(
-                            t.memberExpression(
-                              t.identifier("path"),
-                              t.identifier("node")
-                            ),
-                            t.identifier("start")
-                          )
-                        )
-                      : null;
-                    if (start) props.push(start);
-                    const end = comment
-                      ? t.objectProperty(
-                          t.identifier("end"),
-                          t.memberExpression(comment, t.identifier("end"))
-                        )
-                      : path.scope.hasBinding("path")
-                      ? t.objectProperty(
-                          t.identifier("end"),
-                          t.memberExpression(
-                            t.memberExpression(
-                              t.identifier("path"),
-                              t.identifier("node")
-                            ),
-                            t.identifier("end")
-                          )
-                        )
-                      : null;
-                    if (end) props.push(end);
-                    path.node.arguments.push(t.objectExpression(props));
-                  }
-                },
-              },
-            };
-          },
-        ],
+        plugins: [metadataPlugin],
       },
       {
         test: [

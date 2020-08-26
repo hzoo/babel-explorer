@@ -1,4 +1,5 @@
 import * as Babel from "@babel/core";
+import metadataPlugin from "./metadataPlugin";
 
 // take from @babel/standalone
 import {
@@ -13,6 +14,7 @@ export function transpilePlugin(pluginString) {
     ast: false,
     highlightCode: false,
     presets: [availablePresets["@babel/preset-env"]],
+    plugins: [metadataPlugin],
   }).code;
 }
 
@@ -86,6 +88,15 @@ export function processOptions(options, customPlugin) {
 
   return {
     ast: true,
+    parserOpts: {
+      plugins: [
+        "typescript",
+        "jsx",
+        "classProperties",
+        "classPrivateProperties",
+        "classPrivateMethods",
+      ],
+    },
     babelrc: false,
     configFile: false,
     ...options,

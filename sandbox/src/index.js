@@ -1,6 +1,6 @@
 import React from "react";
 import ReactDOM from "react-dom";
-import { App } from "./components/App";
+import App from "./components/App";
 
 const SOURCE = `const foo = (...a) => \`\${a?.b}\`;
 enum Direction {
@@ -45,38 +45,39 @@ const CONFIG = [
     ],
     plugins: [["@babel/plugin-transform-runtime", { useESModules: true }]],
   },
-  {
-    presets: [
-      [
-        "@babel/preset-env",
-        {
-          loose: true,
-          modules: false,
-          shippedProposals: true,
-          targets: { esmodules: true },
-          bugfixes: true,
-        },
-      ],
-      "@babel/preset-react",
-      [
-        "@babel/preset-typescript",
-        {
-          isTSX: true,
-          allExtensions: true,
-          allowDeclareFields: true,
-          allowNamespaces: true,
-          onlyRemoveTypeImports: true,
-        },
-      ],
-    ],
-    plugins: [["@babel/plugin-transform-runtime", { useESModules: true }]],
-  },
+  // {
+  //   presets: [
+  //     [
+  //       "@babel/preset-env",
+  //       {
+  //         loose: true,
+  //         modules: false,
+  //         shippedProposals: true,
+  //         targets: { esmodules: true },
+  //         bugfixes: true,
+  //       },
+  //     ],
+  //     "@babel/preset-react",
+  //     [
+  //       "@babel/preset-typescript",
+  //       {
+  //         isTSX: true,
+  //         allExtensions: true,
+  //         allowDeclareFields: true,
+  //         allowNamespaces: true,
+  //         onlyRemoveTypeImports: true,
+  //       },
+  //     ],
+  //   ],
+  //   plugins: [["@babel/plugin-transform-runtime", { useESModules: true }]],
+  // },
 ];
 const PLUGIN = `export default function customPlugin(babel) {
   return {
     visitor: {
       Identifier(path) {
-        // console.log(path.node.name);
+        // path.addMetadata(path.node, "test-plugin");
+        // path.node.name = path.node.name + 'zz';
       }
     }
   };

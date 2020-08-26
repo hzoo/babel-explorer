@@ -71,6 +71,16 @@ let proposalMap = {
   "transform-arrow-functions": "background: rgba(42, 187, 155, 0.5)",
   "transform-destructuring": "background: rgba(42, 187, 155, 0.1)",
   "transform-typescript": "background: rgba(42, 187, 155, 0.4)",
+  "module-imports": "background: rgba(42, 187, 155, 0.2)",
+  "proposal-object-rest-spread": "background: rgba(42, 187, 155, 0.3)",
+  "proposal-nullish-coalescing-operator": "background: rgba(233, 212, 96, 0.3)",
+  "transform-block-scoping": "background: rgba(21, 132, 196, 0.3)",
+  "builder-binary-assignment-operator-visitor":
+    "background: rgba(255, 0, 0, 0.3)",
+  "proposal-optional-catch-binding": "background: rgba(255, 0, 0, 0.4)",
+  "proposal-logical-assignment-operators": "background: rgba(255, 0, 0, 0.5)",
+  "create-class-features-plugin": "background: rgba(0, 255, 0, 0.2)",
+  "wrap-function": "background: rgba(0, 255, 0, 0.3)",
 };
 
 function CompiledOutput({
@@ -115,13 +125,20 @@ function CompiledOutput({
   useEffect(() => {
     if (!outputEditor || !compiled.nodes) return;
     for (let node of compiled.nodes) {
-      console.log(JSON.stringify(node.babelPlugin));
+      console.log(node.babelPlugin);
       let highlightColor = proposalMap[node.babelPlugin[0]?.name];
       if (highlightColor) {
         outputEditor.doc.markText(
           fixLoc(node.loc.start),
           fixLoc(node.loc.end),
           { css: highlightColor }
+        );
+      } else {
+        console.log(node.babelPlugin[0].name);
+        outputEditor.doc.markText(
+          fixLoc(node.loc.start),
+          fixLoc(node.loc.end),
+          { css: "background: rgba(255, 255, 255, 0.2)" }
         );
       }
     }
@@ -134,7 +151,7 @@ function CompiledOutput({
         source,
         processOptions(config, debouncedPlugin)
       );
-      let newAST = Babel.parse(code);
+      let newAST = Babel.parse(code, processOptions(config, debouncedPlugin));
       mergeLoc(ast, newAST, (value, loc) => {
         let node = { ...value, loc };
         let added = nodes.some((existingNode, i) => {
@@ -210,7 +227,11 @@ function CompiledOutput({
   );
 }
 
-export const App = ({ defaultSource, defaultBabelConfig, defCustomPlugin }) => {
+export default function App({
+  defaultSource,
+  defaultBabelConfig,
+  defCustomPlugin,
+}) {
   const [source, setSource] = React.useState(defaultSource);
   const [enableCustomPlugin, toggleCustomPlugin] = React.useState(false);
   const [customPlugin, setCustomPlugin] = React.useState(defCustomPlugin);
@@ -259,17 +280,7 @@ export const App = ({ defaultSource, defaultBabelConfig, defCustomPlugin }) => {
   return (
     <Root>
       <Section>
-        {/* buttons */}
-
         {/* <Actions>
-          <label>
-            <input
-              checked={enableCustomPlugin}
-              onChange={() => toggleCustomPlugin(!enableCustomPlugin)}
-              type="checkbox"
-            />
-            <span>Custom Plugin</span>
-          </label>
           <button
             onClick={() =>
               setBabelConfig(configs => [
@@ -282,8 +293,16 @@ export const App = ({ defaultSource, defaultBabelConfig, defCustomPlugin }) => {
           </button>
         </Actions> */}
 
-        {/* input section */}
-
+        {enableCustomPlugin && (
+          <Column>
+            <Code
+              value={customPlugin}
+              onChange={val => setCustomPlugin(val)}
+              docName="plugin.js"
+            />
+            <Toggle onClick={() => toggleCustomPlugin(false)} />
+          </Column>
+        )}
         <Column>
           <div style={{ textAlign: "center" }}>Source</div>
           <Code
@@ -296,28 +315,16 @@ export const App = ({ defaultSource, defaultBabelConfig, defCustomPlugin }) => {
           />
           <FileSize>
             {size}b, {gzip}b
+            <button onClick={() => toggleCustomPlugin(!enableCustomPlugin)}>
+              CUSTOM
+            </button>
           </FileSize>
-          {/* <AST source={source}></AST> */}
         </Column>
-
-        {/* custom plugin section */}
-
-        {enableCustomPlugin && (
-          <Wrapper>
-            <Code
-              value={customPlugin}
-              onChange={val => setCustomPlugin(val)}
-              docName="plugin.js"
-            />
-            <Toggle onClick={() => toggleCustomPlugin(false)} />
-          </Wrapper>
-        )}
-        {/* output code and config section*/}
         {results}
       </Section>
     </Root>
   );
-};
+}
 
 // UTILS
 
