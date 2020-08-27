@@ -7,7 +7,7 @@ module.exports = function babelPlugin(babel) {
   const { types: t, template } = babel;
 
   return {
-    name: "babel-internal-modify-replacewith",
+    name: "transform-babel-metadata",
     visitor: {
       // + replaceWithMultiple
       // path.replaceWith(a) -> path.replaceWith(a, "name")
@@ -37,7 +37,7 @@ module.exports = function babelPlugin(babel) {
           */
           const hasComment = path.parentPath.node.leadingComments;
           let comment;
-          if (hasComment) {
+          if (hasComment && hasComment.length) {
             comment = hasComment[0].value.match(/node: (.*)/);
             if (comment) {
               comment = template.expression(comment[1])();
@@ -119,7 +119,11 @@ module.exports = function babelPlugin(babel) {
               )
             : null;
           if (node) props.push(node);
-          path.node.arguments.push(t.objectExpression(props));
+          const metaNode = t.objectExpression(props);
+          if (path.addMetadata) {
+            path.addMetadata(metaNode, "transform-babel-metadata");
+          }
+          path.node.arguments.push(metaNode);
         }
       },
     },

@@ -2,7 +2,8 @@ import React from "react";
 import ReactDOM from "react-dom";
 import App from "./components/App";
 
-const SOURCE = `const foo = (...a) => \`\${a?.b}\`;
+let GIST = false;
+let SOURCE = `const foo = (...a) => \`\${a?.b}\`;
 enum Direction {
   Left,
   Up,
@@ -24,7 +25,7 @@ class A {
     return <a></a>;
   }
 }`;
-const CONFIG = [
+let CONFIG = [
   {
     presets: [
       [
@@ -72,7 +73,7 @@ const CONFIG = [
   //   plugins: [["@babel/plugin-transform-runtime", { useESModules: true }]],
   // },
 ];
-const PLUGIN = `export default function customPlugin(babel) {
+let PLUGIN = `export default function customPlugin(babel) {
   return {
     visitor: {
       Identifier(path) {
@@ -84,13 +85,81 @@ const PLUGIN = `export default function customPlugin(babel) {
 }
 `;
 
-ReactDOM.render(
-  <React.StrictMode>
-    <App
-      defaultBabelConfig={CONFIG}
-      defaultSource={SOURCE}
-      defCustomPlugin={PLUGIN}
-    />
-  </React.StrictMode>,
-  document.getElementById("root")
-);
+// https://stackoverflow.com/questions/51546372/how-to-parse-the-content-from-response-using-gist-api
+// ex: https://gist.github.com/astexplorer/02baa12f126af2f270d0177e245874cf/264d268511bd722e5d07db78813b485960413473
+// GET /gists/:gist_id
+// GET /gists/:gist_id/:sha
+async function fetchData({ id, version }) {
+  version = version ? `/${version}` : "";
+  const response = await fetch(`https://api.github.com/gists/${id}${version}`);
+  const data = await response.json();
+  return {
+    source: data.files["source.js"].content,
+    plugin: data.files["transform.js"].content,
+  };
+}
+
+// ex: https://api.github.com/gists/02baa12f126af2f270d0177e245874cf
+function getGistFromHash() {
+  // https://gist.github.com/astexplorer/02baa12f126af2f270d0177e245874cf
+  const gist = window.location.hash.match(
+    /#https:\/\/gist.github.com\/(\w+)\/(\w+)\/?(\w+)?/
+  );
+  if (gist) {
+    return {
+      owner: gist[1],
+      id: gist[2],
+      version: gist[3],
+    };
+  }
+
+  // https://astexplorer.net/#/gist/02baa12f126af2f270d0177e245874cf/264d268511bd722e5d07db78813b485960413473
+  const astExplorer = window.location.hash.match(
+    /#https:\/\/astexplorer.net\/#\/gist\/(\w+)\/?(\w+)?/
+  );
+  if (astExplorer) {
+    return {
+      id: astExplorer[1],
+      version: astExplorer[2],
+    };
+  }
+}
+
+async function initState() {
+  const data = getGistFromHash();
+  if (!data) return;
+
+  GIST = true;
+  const key = `babel_sandbox:${data.id}${
+    data.version ? `:${data.version}` : ""
+  }`;
+  const stored = window.sessionStorage.getItem(key);
+  if (stored) {
+    const storedObj = JSON.parse(stored);
+    if (storedObj.source) SOURCE = storedObj.source;
+    if (storedObj.plugin) PLUGIN = storedObj.plugin;
+  } else {
+    try {
+      const { source, plugin } = await fetchData(data);
+      SOURCE = source;
+      PLUGIN = plugin;
+      window.sessionStorage.setItem(key, JSON.stringify({ source, plugin }));
+    } catch (e) {
+      throw new Error(e);
+    }
+  }
+}
+
+initState().then(() => {
+  ReactDOM.render(
+    <React.StrictMode>
+      <App
+        defaultBabelConfig={CONFIG}
+        defaultSource={SOURCE}
+        defCustomPlugin={PLUGIN}
+        gist={GIST}
+      />
+    </React.StrictMode>,
+    document.getElementById("root")
+  );
+});

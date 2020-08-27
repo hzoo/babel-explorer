@@ -238,9 +238,10 @@ export default function App({
   defaultSource,
   defaultBabelConfig,
   defCustomPlugin,
+  gist,
 }) {
   const [source, setSource] = React.useState(defaultSource);
-  const [enableCustomPlugin, toggleCustomPlugin] = React.useState(false);
+  const [enableCustomPlugin, toggleCustomPlugin] = React.useState(gist);
   const [customPlugin, setCustomPlugin] = React.useState(defCustomPlugin);
   const [babelConfig, setBabelConfig] = useState(
     Array.isArray(defaultBabelConfig)
