@@ -13,7 +13,22 @@ export function transpilePlugin(pluginString) {
     configFile: false,
     ast: false,
     highlightCode: false,
-    presets: [availablePresets["@babel/preset-env"]],
+    presets: [
+      [
+        availablePresets["@babel/preset-env"],
+        { loose: true, shippedProposals: true },
+      ],
+      [
+        availablePresets["@babel/preset-typescript"],
+        {
+          isTSX: true,
+          allExtensions: true,
+          allowDeclareFields: true,
+          allowNamespaces: true,
+          onlyRemoveTypeImports: true,
+        },
+      ],
+    ],
     plugins: [metadataPlugin],
   }).code;
 }

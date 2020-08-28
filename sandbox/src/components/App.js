@@ -3,6 +3,7 @@ import * as Babel from "@babel/core";
 import traverse from "@babel/traverse";
 import styled, { css } from "styled-components";
 
+import AST from "./AST";
 import { Editor } from "./Editor";
 import { processOptions } from "../standalone";
 import { gzipSize } from "../gzip";
@@ -85,6 +86,8 @@ let proposalMap = {
 
 function CompiledOutput({
   source,
+  sourceAST,
+  parserError,
   customPlugin,
   config,
   onConfigChange,
@@ -97,7 +100,6 @@ function CompiledOutput({
   const [outputEditor, setOutputEditor] = useState(null);
   const [compiled, setCompiled] = useState({ nodes: [] });
   const [gzip, setGzip] = useState(null);
-  const debouncedPlugin = useDebounce(customPlugin, 125);
 
   useEffect(() => {
     if (!outputEditor || !debouncedCursor) return;
@@ -152,13 +154,21 @@ function CompiledOutput({
   }, [outputEditor, compiled.nodes]);
 
   useEffect(() => {
+    if (parserError) {
+      setCompiled({
+        code: parserError,
+        error: true,
+      });
+      return;
+    }
     try {
       let nodes = [];
-      const { code, ast } = Babel.transform(
+      const { code, ast } = Babel.transformFromAstSync(
+        sourceAST,
         source,
-        processOptions(config, debouncedPlugin)
+        processOptions(config, customPlugin)
       );
-      let newAST = Babel.parse(code, processOptions(config, debouncedPlugin));
+      let newAST = Babel.parse(code, processOptions(config, customPlugin));
       mergeLoc(ast, newAST, (value, loc) => {
         let node = { ...value, loc };
         let added = nodes.some((existingNode, i) => {
@@ -191,7 +201,7 @@ function CompiledOutput({
         error: true,
       });
     }
-  }, [source, config, debouncedPlugin]);
+  }, [source, config, sourceAST, parserError, customPlugin]);
 
   return (
     <Wrapper>
@@ -227,7 +237,7 @@ function CompiledOutput({
       </Column>
       <FileSize>
         {compiled?.size}b, {gzip}b{" "}
-        <button onClick={() => toggleConfig(!showConfig)}>CONFIG</button>
+        <button onClick={() => toggleConfig(!showConfig)}>Show Config</button>
       </FileSize>
       <Toggle onClick={removeConfig} />
     </Wrapper>
@@ -243,6 +253,7 @@ export default function App({
   const [source, setSource] = React.useState(defaultSource);
   const [enableCustomPlugin, toggleCustomPlugin] = React.useState(gist);
   const [customPlugin, setCustomPlugin] = React.useState(defCustomPlugin);
+  const debouncedPlugin = useDebounce(customPlugin, 125);
   const [babelConfig, setBabelConfig] = useState(
     Array.isArray(defaultBabelConfig)
       ? defaultBabelConfig
@@ -251,6 +262,9 @@ export default function App({
   const [size, setSize] = useState(null);
   const [gzip, setGzip] = useState(null);
   const debouncedSource = useDebounce(source, 125);
+  const [ast, setAST] = React.useState(null);
+  const [parserError, setParserError] = React.useState(null);
+  const [showAST, toggleAST] = useState(true); // TODO: false
 
   const updateBabelConfig = useCallback((config, index) => {
     setBabelConfig(configs => {
@@ -265,25 +279,22 @@ export default function App({
     setBabelConfig(configs => configs.filter((c, i) => index !== i));
   }, []);
 
-  let results = babelConfig.map((config, index) => {
-    return (
-      <CompiledOutput
-        source={debouncedSource}
-        customPlugin={enableCustomPlugin ? customPlugin : undefined}
-        config={config}
-        key={index}
-        index={index}
-        onConfigChange={config => updateBabelConfig(config, index)}
-        removeConfig={() => removeBabelConfig(index)}
-      />
-    );
-  });
-
   useEffect(() => {
+    try {
+      let sourceAST = Babel.parse(
+        debouncedSource,
+        processOptions({}, debouncedPlugin)
+      );
+      setAST(sourceAST);
+      setParserError(null);
+    } catch (e) {
+      console.warn(e.stack);
+      setParserError(e.message);
+    }
     let size = new Blob([debouncedSource], { type: "text/plain" }).size;
     setSize(size);
     gzipSize(debouncedSource).then(s => setGzip(s));
-  }, [debouncedSource]);
+  }, [debouncedSource, debouncedPlugin]);
 
   return (
     <Root>
@@ -311,24 +322,44 @@ export default function App({
             <Toggle onClick={() => toggleCustomPlugin(false)} />
           </Column>
         )}
-        <Column>
-          <div style={{ textAlign: "center" }}>Source</div>
-          <Code
-            value={source}
-            onChange={val => setSource(val)}
-            docName="source.js"
-            getEditor={editor => {
-              window.sourceEditor = editor;
-            }}
-          />
-          <FileSize>
-            {size}b, {gzip}b
-            <button onClick={() => toggleCustomPlugin(!enableCustomPlugin)}>
-              CUSTOM
-            </button>
-          </FileSize>
-        </Column>
-        {results}
+        <Wrapper>
+          <Column>
+            <div style={{ textAlign: "center" }}>Source</div>
+            <Code
+              style={{ overflowY: "auto" }}
+              value={source}
+              onChange={val => setSource(val)}
+              docName="source.js"
+              getEditor={editor => {
+                window.sourceEditor = editor;
+              }}
+            />
+            <FileSize>
+              {size}b, {gzip}b
+              <button onClick={() => toggleCustomPlugin(!enableCustomPlugin)}>
+                Show Plugin
+              </button>
+              <button onClick={() => toggleAST(!showAST)}>Show AST</button>
+            </FileSize>
+            {showAST && ast ? <AST ast={ast}></AST> : null}
+          </Column>
+        </Wrapper>
+        {ast &&
+          babelConfig.map((config, index) => {
+            return (
+              <CompiledOutput
+                source={debouncedSource}
+                sourceAST={ast}
+                parserError={parserError}
+                customPlugin={enableCustomPlugin ? debouncedPlugin : undefined}
+                config={config}
+                key={index}
+                index={index}
+                onConfigChange={config => updateBabelConfig(config, index)}
+                removeConfig={() => removeBabelConfig(index)}
+              />
+            );
+          })}
       </Section>
     </Root>
   );
