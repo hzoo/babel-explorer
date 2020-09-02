@@ -56,33 +56,34 @@ function fixLoc(loc) {
   };
 }
 
-let proposalMap = {
-  "transform-numeric-separator": "background: rgba(42, 187, 155, 0.3)",
-  "transform-runtime": "background: rgba(42, 187, 155, 0.6)",
-  "transform-classes": "background: rgba(255, 0, 0, 0.2)",
-  "proposal-optional-chaining": "background: rgba(44, 130, 201, 0.2)",
-  "transform-template-literals": "background: rgba(24, 240, 57, 0.3)",
-  "builder-react-jsx": "background: rgba(223, 125, 41, 0.2)",
-  "transform-for-of": "background: rgba(21, 132, 196, 0.5)",
-  "transform-parameters": "background: rgba(245, 218, 85, 0.2)",
-  regenerator: "background: rgba(107, 231, 132, 0.2)",
-  "transform-async-to-generator": "background: rgba(107, 231, 132, 0.5)",
-  "transform-spread": "background: rgba(233, 212, 96, 0.2)",
-  "transform-shorthand-properties": "background: rgba(42, 187, 155, 0.4)",
-  "transform-arrow-functions": "background: rgba(42, 187, 155, 0.5)",
-  "transform-destructuring": "background: rgba(42, 187, 155, 0.1)",
-  "transform-typescript": "background: rgba(42, 187, 155, 0.4)",
-  "module-imports": "background: rgba(42, 187, 155, 0.2)",
-  "proposal-object-rest-spread": "background: rgba(42, 187, 155, 0.3)",
-  "proposal-nullish-coalescing-operator": "background: rgba(233, 212, 96, 0.3)",
-  "transform-block-scoping": "background: rgba(21, 132, 196, 0.3)",
-  "builder-binary-assignment-operator-visitor":
-    "background: rgba(255, 0, 0, 0.3)",
-  "proposal-optional-catch-binding": "background: rgba(255, 0, 0, 0.4)",
-  "proposal-logical-assignment-operators": "background: rgba(255, 0, 0, 0.5)",
-  "create-class-features-plugin": "background: rgba(0, 255, 0, 0.2)",
-  "wrap-function": "background: rgba(0, 255, 0, 0.3)",
-};
+// No need to hardcode colors, just hash it and add values within some range
+// via https://gist.github.com/0x263b/2bdd90886c2036a1ad5bcf06d6e6fb37
+function stringtoHSL(string, opts) {
+  let h, s, l;
+  opts = opts || {};
+  opts.hue = opts.hue || [0, 360];
+  opts.sat = opts.sat || [75, 100];
+  opts.lit = opts.lit || [40, 60];
+
+  const range = function (hash, min, max) {
+    const diff = max - min;
+    const x = ((hash % diff) + diff) % diff;
+    return x + min;
+  };
+
+  let hash = 0;
+  if (string.length === 0) return hash;
+  for (let i = 0; i < string.length; i++) {
+    hash = string.charCodeAt(i) + ((hash << 5) - hash);
+    hash = hash & hash;
+  }
+
+  h = range(hash, opts.hue[0], opts.hue[1]);
+  s = range(hash, opts.sat[0], opts.sat[1]);
+  l = range(hash, opts.lit[0], opts.lit[1]);
+
+  return `hsl(${h}, ${s}%, ${l}%)`;
+}
 
 function CompiledOutput({
   source,
@@ -135,21 +136,18 @@ function CompiledOutput({
   useEffect(() => {
     if (!outputEditor || !compiled.nodes) return;
     for (let node of compiled.nodes) {
-      let highlightColor = proposalMap[node.babelPlugin[0]?.name];
-      if (highlightColor) {
-        outputEditor.doc.markText(
-          fixLoc(node.loc.start),
-          fixLoc(node.loc.end),
-          { css: highlightColor }
-        );
-      } else {
-        console.warn(`UNHANDLED plugin-name ${node.babelPlugin[0].name}`);
-        outputEditor.doc.markText(
-          fixLoc(node.loc.start),
-          fixLoc(node.loc.end),
-          { css: "background: rgba(255, 255, 255, 0.2)" }
-        );
-      }
+      // generate highlight color based on plugin name
+      // figure out something better for custom plugins
+      // maybe need to be able to edit it via ui/save settings
+      // can tweak colors too
+      // maybe reuse algo (since deterministic) in the AST node as well and do something with it?
+      outputEditor.doc.markText(fixLoc(node.loc.start), fixLoc(node.loc.end), {
+        css: `background: ${stringtoHSL(node.babelPlugin[0]?.name, {
+          hue: [180, 360],
+          sat: [85, 100],
+          lit: [5, 35],
+        })}`,
+      });
     }
   }, [outputEditor, compiled.nodes]);
 
