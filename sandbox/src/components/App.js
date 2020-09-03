@@ -30,21 +30,37 @@ function mergeLoc(sourceAST, newAST, cb) {
   sourceAST.loc = newAST.loc;
 
   for (let key of Object.keys(sourceAST)) {
+    if (key === "babelPlugin" || key === "loc") continue;
+
     let value = sourceAST[key];
+    if (!value) continue;
+
     if (Array.isArray(value)) {
       for (let i = 0; i < value.length; i++) {
         if (value[i] && typeof value[i] === "object") {
+          if (!newAST[key][i]) continue;
+
+          sourceAST[key][i].start = newAST[key][i].start;
+          sourceAST[key][i].end = newAST[key][i].end;
+          sourceAST[key][i].loc = newAST[key][i].loc;
+
           if (value[i].babelPlugin) {
             cb(value[i], newAST[key][i].loc);
           }
-          if (newAST?.[key]?.[i]) mergeLoc(value[i], newAST[key][i], cb);
+          mergeLoc(value[i], newAST[key][i], cb);
         }
       }
-    } else if (value && typeof value === "object") {
+    } else if (typeof value === "object") {
+      if (!newAST[key]) continue;
+
+      sourceAST[key].start = newAST[key].start;
+      sourceAST[key].end = newAST[key].end;
+      sourceAST[key].loc = newAST[key].loc;
+
       if (value.babelPlugin) {
         cb(value, newAST[key].loc);
       }
-      if (newAST[key]) mergeLoc(value, newAST[key], cb);
+      mergeLoc(value, newAST[key], cb);
     }
   }
 }
@@ -58,7 +74,7 @@ function fixLoc(loc) {
 
 // No need to hardcode colors, just hash it and add values within some range
 // via https://gist.github.com/0x263b/2bdd90886c2036a1ad5bcf06d6e6fb37
-function stringtoHSL(string, opts) {
+function stringtoHSL(string = "default", opts) {
   let h, s, l;
   opts = opts || {};
   opts.hue = opts.hue || [0, 360];
@@ -85,6 +101,21 @@ function stringtoHSL(string, opts) {
   return `hsl(${h}, ${s}%, ${l}%)`;
 }
 
+function findClosestTransformedNode(ast, index) {
+  let node;
+  traverse(ast, {
+    enter(path) {
+      if (index < path.node.start) {
+        path.skip();
+      } else if (index > path.node.end) {
+        path.skip();
+      } else if (path.node.babelPlugin) node = path.node;
+    },
+  });
+
+  return node;
+}
+
 function CompiledOutput({
   source,
   sourceAST,
@@ -99,7 +130,7 @@ function CompiledOutput({
   const debouncedCursor = useDebounce(cursor, 100);
   const [showConfig, toggleConfig] = useState(false);
   const [outputEditor, setOutputEditor] = useState(null);
-  const [compiled, setCompiled] = useState({ nodes: [] });
+  const [compiled, setCompiled] = useState({ transformedNodes: [] });
   const [gzip, setGzip] = useState(null);
 
   useEffect(() => {
@@ -107,17 +138,8 @@ function CompiledOutput({
     if (window.sourceEditor.hasFocus()) return;
     // Object { line: 0, ch: 2, sticky: "before", xRel: -4 }
     let outputIndex = outputEditor.doc.indexFromPos(debouncedCursor);
-    let node;
-    traverse(compiled.ast, {
-      enter(path) {
-        if (outputIndex < path.node.start) {
-          path.skip();
-        } else if (outputIndex > path.node.end) {
-          path.skip();
-        } else if (path.node.babelPlugin) node = path.node;
-      },
-    });
-    if (node?.babelPlugin) {
+    let node = findClosestTransformedNode(compiled.ast, outputIndex);
+    if (node) {
       const start = node.babelPlugin[0].start;
       const end = node.babelPlugin[0].end;
       if (!start || !end) {
@@ -134,8 +156,8 @@ function CompiledOutput({
   }, [outputEditor, debouncedCursor, compiled.ast]);
 
   useEffect(() => {
-    if (!outputEditor || !compiled.nodes) return;
-    for (let node of compiled.nodes) {
+    if (!outputEditor || !compiled.transformedNodes) return;
+    for (let node of compiled.transformedNodes) {
       // generate highlight color based on plugin name
       // figure out something better for custom plugins
       // maybe need to be able to edit it via ui/save settings
@@ -149,7 +171,7 @@ function CompiledOutput({
         })}`,
       });
     }
-  }, [outputEditor, compiled.nodes]);
+  }, [outputEditor, compiled.transformedNodes]);
 
   useEffect(() => {
     if (parserError) {
@@ -160,7 +182,7 @@ function CompiledOutput({
       return;
     }
     try {
-      let nodes = [];
+      let transformedNodes = [];
       const { code, ast } = Babel.transformFromAstSync(
         sourceAST,
         source,
@@ -169,7 +191,7 @@ function CompiledOutput({
       let newAST = Babel.parse(code, processOptions(config, customPlugin));
       mergeLoc(ast, newAST, (value, loc) => {
         let node = { ...value, loc };
-        let added = nodes.some((existingNode, i) => {
+        let added = transformedNodes.some((existingNode, i) => {
           if (
             loc.start.line < existingNode.loc.start.line ||
             (loc.start.line === existingNode.loc.start.line &&
@@ -178,22 +200,22 @@ function CompiledOutput({
             (loc.end.line === existingNode.loc.end.line &&
               loc.end.column >= existingNode.loc.end.column)
           ) {
-            nodes.splice(i, 0, node);
+            transformedNodes.splice(i, 0, node);
             return true;
           }
           return false;
         });
-        if (!added) nodes.push(node);
+        if (!added) transformedNodes.push(node);
       });
       gzipSize(code).then(s => setGzip(s));
       setCompiled({
         code,
         size: new Blob([code], { type: "text/plain" }).size,
-        nodes,
+        transformedNodes,
         ast,
       });
     } catch (e) {
-      console.warn(e.stack);
+      if (!e.stack.includes("SyntaxError")) console.warn(e.stack);
       setCompiled({
         code: e.message,
         error: true,
@@ -286,7 +308,6 @@ export default function App({
       setAST(sourceAST);
       setParserError(null);
     } catch (e) {
-      console.warn(e.stack);
       setParserError(e.message);
     }
     let size = new Blob([debouncedSource], { type: "text/plain" }).size;

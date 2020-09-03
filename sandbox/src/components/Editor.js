@@ -50,6 +50,9 @@ export function Editor({
       onCursor={(editor, data) => {
         if (onCursor) onCursor(data);
       }}
+      // onSelection={(editor, data) => {
+      //   console.log(data);
+      // }}
     />
   );
 }
