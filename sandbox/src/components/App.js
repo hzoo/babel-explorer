@@ -251,7 +251,7 @@ function CompiledOutput({
       // retain the AST to use the metadata that has been added to nodes
       const { code, ast } = Babel.transformFromAstSync(
         sourceAST,
-        source,
+        null,
         processOptions(config, customPlugin)
       );
       // reparse the compiled output to get loc data
@@ -321,7 +321,7 @@ function CompiledOutput({
         error: true,
       });
     }
-  }, [source, config, sourceAST, parserError, customPlugin]);
+  }, [config, sourceAST, parserError, customPlugin]);
 
   return (
     <Wrapper>
