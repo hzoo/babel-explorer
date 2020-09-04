@@ -9,9 +9,9 @@ module.exports = function babelPlugin(babel) {
   return {
     name: "transform-babel-metadata",
     visitor: {
-      // + replaceWithMultiple
-      // path.replaceWith(a) -> path.replaceWith(a, "name")
+      // pathX.replaceWith(a) -> pathX.replaceWith(a, { name: "name" })
       // TODO: handle nested MemberExpression like a.b.replaceWith
+      // TODO: CallExpression like path.get("left").replaceWith
       CallExpression(path, state) {
         state.filename = state.filename || "babel-plugin-custom/src.js";
         if (
@@ -22,9 +22,9 @@ module.exports = function babelPlugin(babel) {
             "replaceWithMultiple",
             "insertAfter",
             "insertBefore",
-            "addHelper",
           ].some(a => a === path.node.callee.property.name)
         ) {
+          // if the path is other than path.replaceWith (parent.replaceWith)
           const currentPath =
             (path.node.callee.object.type === "Identifier" &&
               path.node.callee.object.name) ||
@@ -65,17 +65,19 @@ module.exports = function babelPlugin(babel) {
               )
             ),
           ];
+          const pathInScope = path.scope.hasBinding(currentPath);
+          const currentPathNode = t.identifier(currentPath);
           const start = comment
             ? t.objectProperty(
                 t.identifier("start"),
                 t.memberExpression(comment, t.identifier("start"))
               )
-            : path.scope.hasBinding(currentPath)
+            : pathInScope
             ? t.objectProperty(
                 t.identifier("start"),
                 t.optionalMemberExpression(
                   t.optionalMemberExpression(
-                    t.identifier(currentPath),
+                    currentPathNode,
                     t.identifier("node"),
                     false,
                     true
@@ -92,12 +94,12 @@ module.exports = function babelPlugin(babel) {
                 t.identifier("end"),
                 t.memberExpression(comment, t.identifier("end"))
               )
-            : path.scope.hasBinding(currentPath)
+            : pathInScope
             ? t.objectProperty(
                 t.identifier("end"),
                 t.optionalMemberExpression(
                   t.optionalMemberExpression(
-                    t.identifier(currentPath),
+                    currentPathNode,
                     t.identifier("node"),
                     false,
                     true
@@ -109,20 +111,21 @@ module.exports = function babelPlugin(babel) {
               )
             : null;
           if (end) props.push(end);
-          const node = comment
-            ? t.objectProperty(t.identifier("node"), comment)
-            : path.scope.hasBinding(currentPath)
-            ? t.objectProperty(
-                t.identifier("node"),
-                t.optionalMemberExpression(
-                  t.identifier(currentPath),
-                  t.identifier("node"),
-                  false,
-                  true
-                )
-              )
-            : null;
-          if (node) props.push(node);
+          // TODO: do something with ast node?
+          // const node = comment
+          //   ? t.objectProperty(t.identifier("node"), comment)
+          //   : pathInScope
+          //   ? t.objectProperty(
+          //       t.identifier("node"),
+          //       t.optionalMemberExpression(
+          //         currentPathNode,
+          //         t.identifier("node"),
+          //         false,
+          //         true
+          //       )
+          //     )
+          //   : null;
+          // if (node) props.push(node);
           const metaNode = t.objectExpression(props);
           if (path.addMetadata) {
             path.addMetadata(metaNode, "transform-babel-metadata");

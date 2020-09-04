@@ -211,7 +211,6 @@ export default class File {
 
     nodes.forEach(node => {
       node._compact = true;
-      this.path.addMetadata(node, metadata);
     });
 
     this.path.unshiftContainer("body", nodes);
