@@ -244,6 +244,12 @@ NodePath.prototype.addMetadata = function (node, metaData) {
   }
 };
 
+NodePath.prototype.mark = function (
+  options = { css: "background: rgba(255,255,255,0.2)" },
+) {
+  this.addMetadata(this.node, options);
+};
+
 for (const type of (t.TYPES: Array<string>)) {
   const typeKey = `is${type}`;
   const fn = t[typeKey];

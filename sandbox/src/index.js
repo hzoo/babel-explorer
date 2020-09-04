@@ -77,13 +77,15 @@ let PLUGIN = `export default function customPlugin(babel) {
   return {
     visitor: {
       Identifier(path) {
-        // path.addMetadata(path.node, "test-plugin");
-        // path.node.name = path.node.name + 'zz';
-      }
+        // new method
+        path.mark();
+      },
+      // Class(path) {
+      //   path.mark({ color: "rgba(255,0,255,0.2)" });
+      // }
     }
   };
-}
-`;
+}`;
 
 // https://stackoverflow.com/questions/51546372/how-to-parse-the-content-from-response-using-gist-api
 // ex: https://gist.github.com/astexplorer/02baa12f126af2f270d0177e245874cf/264d268511bd722e5d07db78813b485960413473

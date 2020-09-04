@@ -74,15 +74,6 @@ function mergeLoc(sourceAST, newAST, cb) {
   }
 }
 
-function fixLoc(loc) {
-  if (loc.ch) return loc;
-
-  return {
-    line: loc.line - 1,
-    ch: loc.column,
-  };
-}
-
 // No need to hardcode colors, just hash it and add values within some range
 // via https://gist.github.com/0x263b/2bdd90886c2036a1ad5bcf06d6e6fb37
 function stringtoHSL(string = "default", opts) {
@@ -120,24 +111,41 @@ function getCSSForTransform(name) {
   });
 }
 
-function markNodes(cm, nodes) {
-  for (let node of nodes) {
-    // generate highlight color based on plugin name
-    // figure out something better for custom plugins
-    // maybe need to be able to edit it via ui/save settings
-    // can tweak colors too
-    // maybe reuse algo (since deterministic) in the AST node as well and do something with it?
-    cm.doc.markText(fixLoc(node.loc.start), fixLoc(node.loc.end), {
-      css: `background: ${getCSSForTransform(node.babelPlugin[0]?.name)}`,
-    });
+// TODO: what to do with this old fn that uses node loc vs. start/end range?
+// function fixLoc(loc) {
+//   if (loc.ch) return loc;
+
+//   return {
+//     line: loc.line - 1,
+//     ch: loc.column,
+//   };
+// }
+// function markNodes(cm, nodes) {
+//   for (let node of nodes) {
+//     // generate highlight color based on plugin name
+//     // figure out something better for custom plugins
+//     // maybe need to be able to edit it via ui/save settings
+//     // can tweak colors too
+//     // maybe reuse algo (since deterministic) in the AST node as well and do something with it?
+//     cm.doc.markText(fixLoc(node.loc.start), fixLoc(node.loc.end), {
+//       css: `background: ${getCSSForTransform(node.babelPlugin[0]?.name)}`,
+//     });
+//   }
+// }
+
+function markRanges(cm, type, ranges) {
+  cm.doc.getAllMarks().forEach(mark => mark.clear());
+  for (let range of ranges) {
+    markNodeFromIndex(cm, type, range);
   }
 }
 
-function markNodeFromIndex(cm, start, end, name) {
-  const from = cm.posFromIndex(start);
-  const to = cm.posFromIndex(end);
-  cm.doc.markText(from, to, {
-    css: `background: ${getCSSForTransform(name)}`,
+function markNodeFromIndex(cm, type, data) {
+  const start = type === "source" ? data.start : data.outputStart;
+  const end = type === "source" ? data.end : data.outputEnd;
+  const color = data.color || getCSSForTransform(data.name);
+  cm.doc.markText(cm.posFromIndex(start), cm.posFromIndex(end), {
+    css: data.css || `background: ${color}`,
   });
 }
 
@@ -180,7 +188,9 @@ function CompiledOutput({
     } else if (outputChange) {
       index = outputEditor.doc.indexFromPos(outputCursor);
     } else {
-      markNodes(outputEditor, compiled.transformedNodes);
+      outputEditor.doc.getAllMarks().forEach(mark => mark.clear());
+      markRanges(outputEditor, "output", compiled.ranges);
+      markRanges(window.sourceEditor, "source", compiled.ranges);
       return;
     }
 
@@ -198,22 +208,22 @@ function CompiledOutput({
     if (!compiled.ranges[endRange]) {
       if (sourceChange) {
         // TODO: highlight source side as well
-        markNodes(outputEditor, compiled.transformedNodes);
+        outputEditor.doc.getAllMarks().forEach(mark => mark.clear());
+        markRanges(outputEditor, "output", compiled.ranges);
+        markRanges(window.sourceEditor, "source", compiled.ranges);
       }
       return;
     }
 
-    let { start, end, outputStart, outputEnd, name } = compiled.ranges[
-      endRange
-    ];
+    let { start, end, outputStart, outputEnd } = compiled.ranges[endRange];
 
     // re-highlight source
     window.sourceEditor.doc.getAllMarks().forEach(mark => mark.clear());
-    markNodeFromIndex(window.sourceEditor, start, end, name);
+    markNodeFromIndex(window.sourceEditor, "source", compiled.ranges[endRange]);
 
     // highlight output
     outputEditor.doc.getAllMarks().forEach(mark => mark.clear());
-    markNodeFromIndex(outputEditor, outputStart, outputEnd, name);
+    markNodeFromIndex(outputEditor, "output", compiled.ranges[endRange]);
 
     // only scroll if off screen maybe, or significant?
     if (sourceChange) {
@@ -225,13 +235,7 @@ function CompiledOutput({
       const to = window.sourceEditor.posFromIndex(end);
       window.sourceEditor.scrollIntoView({ from, to }, window.innerHeight / 3);
     }
-  }, [
-    outputEditor,
-    sourceCursor,
-    outputCursor,
-    compiled.ranges,
-    compiled.transformedNodes,
-  ]);
+  }, [outputEditor, sourceCursor, outputCursor, compiled.ranges]);
 
   useEffect(() => {
     if (parserError) {
@@ -277,7 +281,11 @@ function CompiledOutput({
         for (let i = 0; i < node.babelPlugin.length; i++) {
           const metadata = node.babelPlugin[i];
           let rangesAdded = ranges.some((existingRange, rangeIndex) => {
-            if (loc.start < existingRange.start) {
+            if (
+              loc.start < existingRange.start ||
+              (loc.start === existingRange.start &&
+                loc.end <= existingRange.end)
+            ) {
               ranges.splice(rangeIndex, 0, {
                 outputStart: node.start,
                 outputEnd: node.end,
@@ -295,12 +303,7 @@ function CompiledOutput({
             });
 
           // color the source with the same color as output
-          markNodeFromIndex(
-            window.sourceEditor,
-            metadata.start,
-            metadata.end,
-            metadata.name
-          );
+          markNodeFromIndex(window.sourceEditor, "source", metadata);
         }
       });
       gzipSize(code).then(s => setGzip(s));
