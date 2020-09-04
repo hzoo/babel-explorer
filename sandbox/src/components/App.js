@@ -307,6 +307,7 @@ function CompiledOutput({
         }
       });
       gzipSize(code).then(s => setGzip(s));
+      window.ranges = ranges;
       setCompiled({
         code,
         size: new Blob([code], { type: "text/plain" }).size,

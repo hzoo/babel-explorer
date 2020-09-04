@@ -36,6 +36,7 @@ export default declare(api => {
           if (t.isStringLiteral(computedKey, { value: "__proto__" })) {
             path.replaceWith(t.objectProperty(computedKey, node.value, true));
           } else {
+            // node: node
             node.shorthand = false;
           }
         }

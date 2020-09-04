@@ -6,6 +6,7 @@ import type { Visitor } from "../../types";
 const renameVisitor: Visitor<Renamer> = {
   ReferencedIdentifier({ node }, state) {
     if (node.name === state.oldName) {
+      // node: node
       node.name = state.newName;
     }
   },

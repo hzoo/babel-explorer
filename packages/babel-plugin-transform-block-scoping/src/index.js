@@ -147,6 +147,7 @@ function convertBlockScopedToVar(
     }
   }
 
+  // node: node
   node[t.BLOCK_SCOPED_SYMBOL] = true;
   node.kind = "var";
 
