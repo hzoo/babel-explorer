@@ -28,6 +28,7 @@ export function Editor({
   onChange,
   getEditor,
   onCursor,
+  onSelection,
   style,
   ...options
 }) {
@@ -50,9 +51,9 @@ export function Editor({
       onCursor={(editor, data) => {
         if (onCursor) onCursor(data);
       }}
-      // onSelection={(editor, data) => {
-      //   console.log(data);
-      // }}
+      onSelection={(editor, data) => {
+        if (onSelection) onSelection(data);
+      }}
     />
   );
 }

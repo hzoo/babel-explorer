@@ -1,6 +1,5 @@
 import React, { useState, useCallback, useEffect } from "react";
 import * as Babel from "@babel/core";
-import traverse from "@babel/traverse";
 import styled, { css } from "styled-components";
 
 import AST from "./AST";
@@ -24,13 +23,23 @@ function getTargets(config) {
   }
 }
 
+const skipKeys = {
+  babelPlugin: 1,
+  start: 1,
+  end: 1,
+  loc: 1,
+  leadingComments: 1,
+  innerComments: 1,
+  trailingComments: 1,
+};
+
 function mergeLoc(sourceAST, newAST, cb) {
   sourceAST.start = newAST.start;
   sourceAST.end = newAST.end;
   sourceAST.loc = newAST.loc;
 
   for (let key of Object.keys(sourceAST)) {
-    if (key === "babelPlugin" || key === "loc") continue;
+    if (skipKeys[key]) continue;
 
     let value = sourceAST[key];
     if (!value) continue;
@@ -45,7 +54,7 @@ function mergeLoc(sourceAST, newAST, cb) {
           sourceAST[key][i].loc = newAST[key][i].loc;
 
           if (value[i].babelPlugin) {
-            cb(value[i], newAST[key][i].loc);
+            cb(value[i]);
           }
           mergeLoc(value[i], newAST[key][i], cb);
         }
@@ -58,7 +67,7 @@ function mergeLoc(sourceAST, newAST, cb) {
       sourceAST[key].loc = newAST[key].loc;
 
       if (value.babelPlugin) {
-        cb(value, newAST[key].loc);
+        cb(value);
       }
       mergeLoc(value, newAST[key], cb);
     }
@@ -66,6 +75,8 @@ function mergeLoc(sourceAST, newAST, cb) {
 }
 
 function fixLoc(loc) {
+  if (loc.ch) return loc;
+
   return {
     line: loc.line - 1,
     ch: loc.column,
@@ -101,19 +112,33 @@ function stringtoHSL(string = "default", opts) {
   return `hsl(${h}, ${s}%, ${l}%)`;
 }
 
-function findClosestTransformedNode(ast, index) {
-  let node;
-  traverse(ast, {
-    enter(path) {
-      if (index < path.node.start) {
-        path.skip();
-      } else if (index > path.node.end) {
-        path.skip();
-      } else if (path.node.babelPlugin) node = path.node;
-    },
+function getCSSForTransform(name) {
+  return stringtoHSL(name, {
+    hue: [180, 360],
+    sat: [85, 100],
+    lit: [5, 35],
   });
+}
 
-  return node;
+function markNodes(cm, nodes) {
+  for (let node of nodes) {
+    // generate highlight color based on plugin name
+    // figure out something better for custom plugins
+    // maybe need to be able to edit it via ui/save settings
+    // can tweak colors too
+    // maybe reuse algo (since deterministic) in the AST node as well and do something with it?
+    cm.doc.markText(fixLoc(node.loc.start), fixLoc(node.loc.end), {
+      css: `background: ${getCSSForTransform(node.babelPlugin[0]?.name)}`,
+    });
+  }
+}
+
+function markNodeFromIndex(cm, start, end, name) {
+  const from = cm.posFromIndex(start);
+  const to = cm.posFromIndex(end);
+  cm.doc.markText(from, to, {
+    css: `background: ${getCSSForTransform(name)}`,
+  });
 }
 
 function CompiledOutput({
@@ -125,53 +150,88 @@ function CompiledOutput({
   onConfigChange,
   removeConfig,
   index,
+  sourceSelection,
 }) {
   const [cursor, setCursor] = useState(null);
-  const debouncedCursor = useDebounce(cursor, 100);
+  const outputCursor = useDebounce(cursor, 100);
   const [showConfig, toggleConfig] = useState(false);
   const [outputEditor, setOutputEditor] = useState(null);
-  const [compiled, setCompiled] = useState({ transformedNodes: [] });
+  const [compiled, setCompiled] = useState({
+    transformedNodes: [],
+    ranges: [],
+  });
   const [gzip, setGzip] = useState(null);
+  const sourceCursor = useDebounce(sourceSelection, 100);
 
+  // highlight all nodes. and either
+  // highlight corresponding source code when clicking on output
+  // highlight corresponding output code when selecting source
   useEffect(() => {
-    if (!outputEditor || !debouncedCursor) return;
-    if (window.sourceEditor.hasFocus()) return;
-    // Object { line: 0, ch: 2, sticky: "before", xRel: -4 }
-    let outputIndex = outputEditor.doc.indexFromPos(debouncedCursor);
-    let node = findClosestTransformedNode(compiled.ast, outputIndex);
-    if (node) {
-      const start = node.babelPlugin[0].start;
-      const end = node.babelPlugin[0].end;
-      if (!start || !end) {
-        console.warn(
-          `BUG: no start/end for ${JSON.stringify(debouncedCursor)}`
-        );
-        return;
+    if (!outputEditor || !compiled.ranges) return;
+    let index;
+    let sourceChange = sourceCursor && window.sourceEditor.hasFocus();
+    let outputChange = outputCursor && outputEditor.hasFocus();
+    if (sourceChange) {
+      // range -
+      // head: Pos {line: 6, ch: 1, sticky: "before", xRel: 146.296875}
+      // anchor: Pos {line: 13, ch: 0, sticky: "after", xRel: 133}
+      const selectRange = sourceCursor.ranges[0];
+      index = window.sourceEditor.doc.indexFromPos(selectRange.head);
+    } else if (outputChange) {
+      index = outputEditor.doc.indexFromPos(outputCursor);
+    } else {
+      markNodes(outputEditor, compiled.transformedNodes);
+      return;
+    }
+
+    // is the index selected within the range of something transformed?
+    let endRange;
+    for (let i = 0; i < compiled.ranges.length; i++) {
+      const range = compiled.ranges[i];
+      const start = sourceChange ? range.start : range.outputStart;
+      const end = sourceChange ? range.end : range.outputEnd;
+      if (index >= start && index <= end) {
+        endRange = i;
       }
-      const from = window.sourceEditor.posFromIndex(node.babelPlugin[0].start);
-      const to = window.sourceEditor.posFromIndex(node.babelPlugin[0].end);
-      window.sourceEditor.doc.setSelection(from, to, { scroll: false });
+    }
+    // if not, just highlight everything?
+    if (!compiled.ranges[endRange]) {
+      if (sourceChange) {
+        // TODO: highlight source side as well
+        markNodes(outputEditor, compiled.transformedNodes);
+      }
+      return;
+    }
+
+    let { start, end, outputStart, outputEnd, name } = compiled.ranges[
+      endRange
+    ];
+
+    // re-highlight source
+    window.sourceEditor.doc.getAllMarks().forEach(mark => mark.clear());
+    markNodeFromIndex(window.sourceEditor, start, end, name);
+
+    // highlight output
+    outputEditor.doc.getAllMarks().forEach(mark => mark.clear());
+    markNodeFromIndex(outputEditor, outputStart, outputEnd, name);
+
+    // only scroll if off screen maybe, or significant?
+    if (sourceChange) {
+      const from = outputEditor.posFromIndex(outputStart);
+      const to = outputEditor.posFromIndex(outputEnd);
+      outputEditor.scrollIntoView({ from, to }, window.innerHeight / 3);
+    } else {
+      const from = window.sourceEditor.posFromIndex(start);
+      const to = window.sourceEditor.posFromIndex(end);
       window.sourceEditor.scrollIntoView({ from, to }, window.innerHeight / 3);
     }
-  }, [outputEditor, debouncedCursor, compiled.ast]);
-
-  useEffect(() => {
-    if (!outputEditor || !compiled.transformedNodes) return;
-    for (let node of compiled.transformedNodes) {
-      // generate highlight color based on plugin name
-      // figure out something better for custom plugins
-      // maybe need to be able to edit it via ui/save settings
-      // can tweak colors too
-      // maybe reuse algo (since deterministic) in the AST node as well and do something with it?
-      outputEditor.doc.markText(fixLoc(node.loc.start), fixLoc(node.loc.end), {
-        css: `background: ${stringtoHSL(node.babelPlugin[0]?.name, {
-          hue: [180, 360],
-          sat: [85, 100],
-          lit: [5, 35],
-        })}`,
-      });
-    }
-  }, [outputEditor, compiled.transformedNodes]);
+  }, [
+    outputEditor,
+    sourceCursor,
+    outputCursor,
+    compiled.ranges,
+    compiled.transformedNodes,
+  ]);
 
   useEffect(() => {
     if (parserError) {
@@ -183,14 +243,19 @@ function CompiledOutput({
     }
     try {
       let transformedNodes = [];
+      let ranges = [];
+      // retain the AST to use the metadata that has been added to nodes
       const { code, ast } = Babel.transformFromAstSync(
         sourceAST,
         source,
         processOptions(config, customPlugin)
       );
+      // reparse the compiled output to get loc data
       let newAST = Babel.parse(code, processOptions(config, customPlugin));
-      mergeLoc(ast, newAST, (value, loc) => {
-        let node = { ...value, loc };
+      // merge the 2 ASTs by replacing incomplete loc data
+      mergeLoc(ast, newAST, node => {
+        let loc = node.loc;
+        // sort the nodes in nested order
         let added = transformedNodes.some((existingNode, i) => {
           if (
             loc.start.line < existingNode.loc.start.line ||
@@ -206,12 +271,44 @@ function CompiledOutput({
           return false;
         });
         if (!added) transformedNodes.push(node);
+
+        // add source ranges
+        window.sourceEditor.doc.getAllMarks().forEach(mark => mark.clear());
+        for (let i = 0; i < node.babelPlugin.length; i++) {
+          const metadata = node.babelPlugin[i];
+          let rangesAdded = ranges.some((existingRange, rangeIndex) => {
+            if (loc.start < existingRange.start) {
+              ranges.splice(rangeIndex, 0, {
+                outputStart: node.start,
+                outputEnd: node.end,
+                ...metadata,
+              });
+              return true;
+            }
+            return false;
+          });
+          if (!rangesAdded)
+            ranges.push({
+              outputStart: node.start,
+              outputEnd: node.end,
+              ...metadata,
+            });
+
+          // color the source with the same color as output
+          markNodeFromIndex(
+            window.sourceEditor,
+            metadata.start,
+            metadata.end,
+            metadata.name
+          );
+        }
       });
       gzipSize(code).then(s => setGzip(s));
       setCompiled({
         code,
         size: new Blob([code], { type: "text/plain" }).size,
         transformedNodes,
+        ranges,
         ast,
       });
     } catch (e) {
@@ -284,7 +381,8 @@ export default function App({
   const debouncedSource = useDebounce(source, 125);
   const [ast, setAST] = React.useState(null);
   const [parserError, setParserError] = React.useState(null);
-  const [showAST, toggleAST] = useState(true); // TODO: false
+  const [showAST, toggleAST] = useState(false); // TODO: false
+  const [sourceSelection, setSelection] = useState(null);
 
   const updateBabelConfig = useCallback((config, index) => {
     setBabelConfig(configs => {
@@ -352,6 +450,11 @@ export default function App({
               getEditor={editor => {
                 window.sourceEditor = editor;
               }}
+              onSelection={data => {
+                // the selection that is done when you click in the output is also fired
+                if (data.origin === undefined) return;
+                setSelection(data);
+              }}
             />
             <FileSize>
               {size}b, {gzip}b
@@ -369,6 +472,7 @@ export default function App({
               <CompiledOutput
                 source={debouncedSource}
                 sourceAST={ast}
+                sourceSelection={sourceSelection}
                 parserError={parserError}
                 customPlugin={enableCustomPlugin ? debouncedPlugin : undefined}
                 config={config}
