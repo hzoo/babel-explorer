@@ -25,6 +25,10 @@ module.exports = function babelPlugin(babel) {
             "addHelper",
           ].some(a => a === path.node.callee.property.name)
         ) {
+          const currentPath =
+            (path.node.callee.object.type === "Identifier" &&
+              path.node.callee.object.name) ||
+            "path";
           const pluginName = normalize(state.filename).match(
             /babel-(plugin|helper)-((\w+-?)+)/
           )[2];
@@ -66,12 +70,12 @@ module.exports = function babelPlugin(babel) {
                 t.identifier("start"),
                 t.memberExpression(comment, t.identifier("start"))
               )
-            : path.scope.hasBinding("path")
+            : path.scope.hasBinding(currentPath)
             ? t.objectProperty(
                 t.identifier("start"),
                 t.optionalMemberExpression(
                   t.optionalMemberExpression(
-                    t.identifier("path"),
+                    t.identifier(currentPath),
                     t.identifier("node"),
                     false,
                     true
@@ -88,12 +92,12 @@ module.exports = function babelPlugin(babel) {
                 t.identifier("end"),
                 t.memberExpression(comment, t.identifier("end"))
               )
-            : path.scope.hasBinding("path")
+            : path.scope.hasBinding(currentPath)
             ? t.objectProperty(
                 t.identifier("end"),
                 t.optionalMemberExpression(
                   t.optionalMemberExpression(
-                    t.identifier("path"),
+                    t.identifier(currentPath),
                     t.identifier("node"),
                     false,
                     true
@@ -107,11 +111,11 @@ module.exports = function babelPlugin(babel) {
           if (end) props.push(end);
           const node = comment
             ? t.objectProperty(t.identifier("node"), comment)
-            : path.scope.hasBinding("path")
+            : path.scope.hasBinding(currentPath)
             ? t.objectProperty(
                 t.identifier("node"),
                 t.optionalMemberExpression(
-                  t.identifier("path"),
+                  t.identifier(currentPath),
                   t.identifier("node"),
                   false,
                   true

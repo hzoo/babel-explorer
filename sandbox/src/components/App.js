@@ -256,6 +256,7 @@ function CompiledOutput({
       );
       // reparse the compiled output to get loc data
       let newAST = Babel.parse(code, processOptions(config, customPlugin));
+      window.sourceEditor.doc.getAllMarks().forEach(mark => mark.clear());
       // merge the 2 ASTs by replacing incomplete loc data
       mergeLoc(ast, newAST, node => {
         let loc = node.loc;
@@ -277,14 +278,13 @@ function CompiledOutput({
         if (!added) transformedNodes.push(node);
 
         // add source ranges
-        window.sourceEditor.doc.getAllMarks().forEach(mark => mark.clear());
         for (let i = 0; i < node.babelPlugin.length; i++) {
           const metadata = node.babelPlugin[i];
           let rangesAdded = ranges.some((existingRange, rangeIndex) => {
             if (
-              loc.start < existingRange.start ||
-              (loc.start === existingRange.start &&
-                loc.end <= existingRange.end)
+              metadata.start < existingRange.start ||
+              (metadata.start === existingRange.start &&
+                metadata.end <= existingRange.end)
             ) {
               ranges.splice(rangeIndex, 0, {
                 outputStart: node.start,
