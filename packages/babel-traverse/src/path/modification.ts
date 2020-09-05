@@ -250,6 +250,7 @@ export function _verifyNodeList(
 export function unshiftContainer<Nodes extends t.Node | t.Node[]>(
   listKey: string,
   nodes: Nodes,
+  metadata: any,
 ): NodePath[] {
   // todo: NodePaths<Nodes>
   this._assertUnremoved();
@@ -266,6 +267,10 @@ export function unshiftContainer<Nodes extends t.Node | t.Node[]>(
     key: 0,
   }).setContext(this.context);
 
+  nodes.forEach(node => {
+    this.addMetadata(node, metadata);
+  });
+
   return path._containerInsertBefore(nodes);
 }
 
@@ -273,6 +278,7 @@ export function pushContainer(
   this: NodePath,
   listKey: string,
   nodes: t.Node | t.Node[],
+  metadata: any,
 ) {
   this._assertUnremoved();
 
@@ -289,6 +295,10 @@ export function pushContainer(
     listKey,
     key: container.length,
   }).setContext(this.context);
+
+  verifiedNodes.forEach(node => {
+    this.addMetadata(node, metadata);
+  });
 
   return path.replaceWithMultiple(verifiedNodes);
 }

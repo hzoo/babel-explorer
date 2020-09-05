@@ -89,6 +89,8 @@ module.exports = function babelPlugin(babel) {
             "replaceWithMultiple",
             "insertAfter",
             "insertBefore",
+            "unshiftContainer",
+            "pushContainer",
           ].some(a => a === path.node.callee.property.name)
         ) {
           // if the path is other than path.replaceWith (parent.replaceWith)

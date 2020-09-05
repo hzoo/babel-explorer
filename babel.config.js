@@ -186,7 +186,7 @@ module.exports = function (api) {
     ].filter(Boolean),
     overrides: [
       {
-        test: [/(babel-plugin|babel-helper|babel-traverse)/],
+        test: [/packages(\/|\\)(babel-plugin|babel-helper|babel-traverse)/],
         plugins: [metadataPlugin],
       },
       {

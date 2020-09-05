@@ -133,10 +133,16 @@ function getCSSForTransform(name) {
 //   }
 // }
 
-function markRanges(cm, type, ranges) {
+function markRanges(cm, type, ranges, rangeIndexes) {
   cm.doc.getAllMarks().forEach(mark => mark.clear());
-  for (let range of ranges) {
-    markNodeFromIndex(cm, type, range);
+  if (!rangeIndexes) {
+    for (let range of ranges) {
+      markNodeFromIndex(cm, type, range);
+    }
+  } else {
+    for (let index of rangeIndexes) {
+      markNodeFromIndex(cm, type, ranges[index]);
+    }
   }
 }
 
@@ -150,7 +156,6 @@ function markNodeFromIndex(cm, type, data) {
 }
 
 function CompiledOutput({
-  source,
   sourceAST,
   parserError,
   customPlugin,
@@ -194,18 +199,21 @@ function CompiledOutput({
       return;
     }
 
-    // is the index selected within the range of something transformed?
-    let endRange;
+    let lastRange;
+    let containingRanges = [];
     for (let i = 0; i < compiled.ranges.length; i++) {
       const range = compiled.ranges[i];
       const start = sourceChange ? range.start : range.outputStart;
       const end = sourceChange ? range.end : range.outputEnd;
       if (index >= start && index <= end) {
-        endRange = i;
+        lastRange = i;
+        containingRanges.push(i);
+      } else if (index < start) {
+        break;
       }
     }
     // if not, just highlight everything?
-    if (!compiled.ranges[endRange]) {
+    if (!compiled.ranges[lastRange]) {
       if (sourceChange) {
         // TODO: highlight source side as well
         outputEditor.doc.getAllMarks().forEach(mark => mark.clear());
@@ -215,15 +223,18 @@ function CompiledOutput({
       return;
     }
 
-    let { start, end, outputStart, outputEnd } = compiled.ranges[endRange];
+    let { start, end, outputStart, outputEnd } = compiled.ranges[lastRange];
 
     // re-highlight source
-    window.sourceEditor.doc.getAllMarks().forEach(mark => mark.clear());
-    markNodeFromIndex(window.sourceEditor, "source", compiled.ranges[endRange]);
+    markRanges(
+      window.sourceEditor,
+      "source",
+      compiled.ranges,
+      containingRanges
+    );
 
     // highlight output
-    outputEditor.doc.getAllMarks().forEach(mark => mark.clear());
-    markNodeFromIndex(outputEditor, "output", compiled.ranges[endRange]);
+    markRanges(outputEditor, "output", compiled.ranges, containingRanges);
 
     // only scroll if off screen maybe, or significant?
     if (sourceChange) {

@@ -129,6 +129,7 @@ export function arrowFunctionToExpression(
   );
 
   this.ensureBlock();
+  // node: this.node
   // @ts-expect-error todo(flow->ts): avoid mutating nodes
   this.node.type = "FunctionExpression";
   if (!noNewArrows) {
