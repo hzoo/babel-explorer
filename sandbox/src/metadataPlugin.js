@@ -31,8 +31,10 @@ module.exports = function babelPlugin(babel) {
     pre(state) {
       const filename =
         state.opts.filename || "babel/packages/babel-plugin-custom/index.js";
-      this.filePath = filename.match(BABEL_PACKAGES_REGEXP)[1];
-      this.pluginName = this.filePath.match(/^[^(/|\\)]*/)[0];
+      this.filePath = filename;
+      this.pluginName = this.filePath
+        .match(BABEL_PACKAGES_REGEXP)[1]
+        .match(/^[^(/|\\)]*/)[0];
     },
     visitor: {
       /*
@@ -55,7 +57,7 @@ module.exports = function babelPlugin(babel) {
           t.objectProperty(
             t.identifier("file"),
             t.stringLiteral(
-              `${this.filePath} (${path.node.loc.start.line}:${path.node.loc.start.column})`
+              `vscode://file/${this.filePath}:${path.node.loc.start.line}:${path.node.loc.start.column}`
             )
           ),
           t.objectProperty(
@@ -113,8 +115,9 @@ module.exports = function babelPlugin(babel) {
             ),
             t.objectProperty(
               t.identifier("file"),
+              // vscode://file/C:\Users\Hen\win-dev\babel\packages\babel-helper-builder-react-jsx\src\index.js:34:8
               t.stringLiteral(
-                `${this.filePath} (${path.node.loc.start.line}:${path.node.loc.start.column})`
+                `vscode://file/${this.filePath}:${path.node.loc.start.line}:${path.node.loc.start.column}`
               )
             ),
           ];

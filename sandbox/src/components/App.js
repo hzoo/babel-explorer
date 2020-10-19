@@ -175,6 +175,7 @@ function CompiledOutput({
   });
   const [gzip, setGzip] = useState(null);
   const sourceCursor = useDebounce(sourceSelection, 100);
+  const [lastRange, setLastRange] = useState(null);
 
   // highlight all nodes. and either
   // highlight corresponding source code when clicking on output
@@ -224,6 +225,8 @@ function CompiledOutput({
     }
 
     let { start, end, outputStart, outputEnd } = compiled.ranges[lastRange];
+
+    setLastRange(lastRange);
 
     // re-highlight source
     markRanges(
@@ -361,7 +364,7 @@ function CompiledOutput({
           config={{ readOnly: true, lineWrapping: true }}
           isError={compiled?.error ?? false}
           getEditor={editor => {
-            window[outputEditor + String(index)] = editor;
+            window["outputEditor" + String(index)] = editor;
             setOutputEditor(editor);
           }}
           onCursor={data => setCursor(data)}
@@ -370,6 +373,11 @@ function CompiledOutput({
       <FileSize>
         {compiled?.size}b, {gzip}b{" "}
         <button onClick={() => toggleConfig(!showConfig)}>Show Config</button>
+        {lastRange && compiled.ranges ? (
+          <button style={{ background: "#f5da55" }}>
+            <a href={compiled.ranges[lastRange].file}>Open File</a>
+          </button>
+        ) : null}
       </FileSize>
       <Toggle onClick={removeConfig} />
     </Wrapper>
