@@ -40,6 +40,7 @@ export function Editor({
       }}
       options={{
         scrollbarStyle: null,
+        lineNumbers: true,
         theme: "material",
         ...options.config,
       }}
