@@ -9,6 +9,8 @@ import { gzipSize } from "../gzip";
 
 window.babel = Babel;
 
+const githubPrefix = `https://github.com/babel/babel/tree/main/packages/babel-`;
+
 function getTargets(config) {
   if (!config.presets) return "-";
 
@@ -338,6 +340,11 @@ function CompiledOutput({
     }
   }, [config, sourceAST, parserError, customPlugin]);
 
+  let fileUrl =
+    lastRange && compiled.ranges
+      ? compiled.ranges[lastRange]?.file.match(/babel-(.+):(\d+):(\d+)$/)
+      : "";
+
   return (
     <Wrapper>
       {showConfig ? (
@@ -373,9 +380,18 @@ function CompiledOutput({
       <FileSize>
         {compiled?.size}b, {gzip}b{" "}
         <button onClick={() => toggleConfig(!showConfig)}>Show Config</button>
-        {lastRange && compiled.ranges ? (
+        {fileUrl ? (
           <button style={{ background: "#f5da55" }}>
-            <a href={compiled.ranges[lastRange].file}>Open File</a>
+            {window.location.hostname === "localhost" ? (
+              <a href={compiled.ranges[lastRange].file}>Open File</a>
+            ) : (
+              <a
+                target="_blank"
+                href={`${githubPrefix}${fileUrl[1]}#L${fileUrl[2]}`}
+              >
+                Open GitHub
+              </a>
+            )}
           </button>
         ) : null}
       </FileSize>
