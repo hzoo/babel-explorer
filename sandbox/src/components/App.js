@@ -342,7 +342,7 @@ function CompiledOutput({
 
   let fileUrl =
     lastRange && compiled.ranges
-      ? compiled.ranges[lastRange]?.file.match(/babel-(.+):(\d+):(\d+)$/)
+      ? compiled.ranges[lastRange]?.file?.match(/babel-(.+):(\d+):(\d+)$/)
       : "";
 
   return (
@@ -387,6 +387,7 @@ function CompiledOutput({
             ) : (
               <a
                 target="_blank"
+                rel="noopener noreferrer"
                 href={`${githubPrefix}${fileUrl[1]}#L${fileUrl[2]}`}
               >
                 Open GitHub

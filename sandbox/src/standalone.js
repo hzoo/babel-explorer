@@ -1,5 +1,5 @@
 import * as Babel from "@babel/core";
-import metadataPlugin from "./metadataPlugin";
+// import metadataPlugin from "./metadataPlugin";
 
 // take from @babel/standalone
 import {
@@ -29,7 +29,8 @@ export function transpilePlugin(pluginString) {
         },
       ],
     ],
-    plugins: [metadataPlugin],
+    // TODO: figure out file url issue
+    // plugins: [metadataPlugin],
   }).code;
 }
 
