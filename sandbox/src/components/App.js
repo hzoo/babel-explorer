@@ -9,7 +9,8 @@ import { gzipSize } from "../gzip";
 
 window.babel = Babel;
 
-const githubPrefix = `https://github.com/babel/babel/tree/main/packages/babel-`;
+// TODO: change to babel/babel eventually
+const githubPrefix = `https://github.com/hzoo/babel/blob/sandbox/packages/babel-`;
 
 function getTargets(config) {
   if (!config.presets) return "-";
