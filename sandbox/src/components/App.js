@@ -1,6 +1,7 @@
-import React, { useState, useCallback, useEffect } from "react";
+import React, { useState, useCallback, useEffect, useRef } from "react";
 import * as Babel from "@babel/core";
 import styled, { css } from "styled-components";
+import diff_match_patch from "diff-match-patch";
 
 import AST from "./AST";
 import { Editor } from "./Editor";
@@ -159,6 +160,7 @@ function markNodeFromIndex(cm, type, data) {
 }
 
 function CompiledOutput({
+  source,
   sourceAST,
   parserError,
   customPlugin,
@@ -167,6 +169,7 @@ function CompiledOutput({
   removeConfig,
   index,
   sourceSelection,
+  canvas,
 }) {
   const [cursor, setCursor] = useState(null);
   const outputCursor = useDebounce(cursor, 100);
@@ -346,6 +349,12 @@ function CompiledOutput({
       ? compiled.ranges[lastRange]?.file?.match(/babel-(.+):(\d+):(\d+)$/)
       : "";
 
+  useEffect(() => {
+    if (canvas.current && compiled.code) {
+      initialize(canvas.current, source, compiled.code);
+    }
+  }, [compiled]);
+
   return (
     <Wrapper>
       {showConfig ? (
@@ -454,10 +463,13 @@ export default function App({
     gzipSize(debouncedSource).then(s => setGzip(s));
   }, [debouncedSource, debouncedPlugin]);
 
+  const canvas = useRef(null);
+
   return (
-    <Root>
-      <Section>
-        {/* <Actions>
+    <>
+      <Root>
+        <Section>
+          {/* <Actions>
           <button
             onClick={() =>
               setBabelConfig(configs => [
@@ -470,62 +482,67 @@ export default function App({
           </button>
         </Actions> */}
 
-        {enableCustomPlugin && (
-          <Column>
-            <Code
-              value={customPlugin}
-              onChange={val => setCustomPlugin(val)}
-              docName="plugin.js"
-            />
-            <Toggle onClick={() => toggleCustomPlugin(false)} />
-          </Column>
-        )}
-        <Wrapper>
-          <Column>
-            <div style={{ textAlign: "center" }}>Source</div>
-            <Code
-              style={{ overflowY: "auto" }}
-              value={source}
-              onChange={val => setSource(val)}
-              docName="source.js"
-              getEditor={editor => {
-                window.sourceEditor = editor;
-              }}
-              onSelection={data => {
-                // the selection that is done when you click in the output is also fired
-                if (data.origin === undefined) return;
-                setSelection(data);
-              }}
-            />
-            <FileSize>
-              {size}b, {gzip}b
-              <button onClick={() => toggleCustomPlugin(!enableCustomPlugin)}>
-                Show Plugin
-              </button>
-              <button onClick={() => toggleAST(!showAST)}>Show AST</button>
-            </FileSize>
-            {showAST && ast ? <AST ast={ast}></AST> : null}
-          </Column>
-        </Wrapper>
-        {ast &&
-          babelConfig.map((config, index) => {
-            return (
-              <CompiledOutput
-                source={debouncedSource}
-                sourceAST={ast}
-                sourceSelection={sourceSelection}
-                parserError={parserError}
-                customPlugin={enableCustomPlugin ? debouncedPlugin : undefined}
-                config={config}
-                key={index}
-                index={index}
-                onConfigChange={config => updateBabelConfig(config, index)}
-                removeConfig={() => removeBabelConfig(index)}
+          {enableCustomPlugin && (
+            <Column>
+              <Code
+                value={customPlugin}
+                onChange={val => setCustomPlugin(val)}
+                docName="plugin.js"
               />
-            );
-          })}
-      </Section>
-    </Root>
+              <Toggle onClick={() => toggleCustomPlugin(false)} />
+            </Column>
+          )}
+          <Wrapper>
+            <Column>
+              <div style={{ textAlign: "center" }}>Source</div>
+              <Code
+                style={{ overflowY: "auto" }}
+                value={source}
+                onChange={val => setSource(val)}
+                docName="source.js"
+                getEditor={editor => {
+                  window.sourceEditor = editor;
+                }}
+                onSelection={data => {
+                  // the selection that is done when you click in the output is also fired
+                  if (data.origin === undefined) return;
+                  setSelection(data);
+                }}
+              />
+              <FileSize>
+                {size}b, {gzip}b
+                <button onClick={() => toggleCustomPlugin(!enableCustomPlugin)}>
+                  Show Plugin
+                </button>
+                <button onClick={() => toggleAST(!showAST)}>Show AST</button>
+              </FileSize>
+              {showAST && ast ? <AST ast={ast}></AST> : null}
+            </Column>
+          </Wrapper>
+          {ast &&
+            babelConfig.map((config, index) => {
+              return (
+                <CompiledOutput
+                  source={debouncedSource}
+                  sourceAST={ast}
+                  sourceSelection={sourceSelection}
+                  parserError={parserError}
+                  customPlugin={
+                    enableCustomPlugin ? debouncedPlugin : undefined
+                  }
+                  config={config}
+                  key={index}
+                  index={index}
+                  onConfigChange={config => updateBabelConfig(config, index)}
+                  removeConfig={() => removeBabelConfig(index)}
+                  canvas={canvas}
+                />
+              );
+            })}
+        </Section>
+      </Root>
+      <canvas width="800" height="1000" ref={canvas}></canvas>
+    </>
   );
 }
 
@@ -559,6 +576,14 @@ const Root = styled.div`
   // height: 100%;
   height: 100vh;
   padding: 4px;
+
+  font-family: sans-serif;
+  background-color: #24282a;
+  color: white;
+  font-family: Menlo;
+  font-size: 14px;
+  margin: 0;
+  --red: rgba(240, 52, 52, 0.2);
 `;
 
 const Section = styled.section`
@@ -644,3 +669,197 @@ const ToggleRoot = styled.div`
 //     margin-left: 1rem;
 //   }
 // `;
+
+function createRenderer(canvas) {
+  function setDPI(canvas, dpi) {
+    // Set up CSS size.
+    canvas.style.width = canvas.style.width || canvas.width + "px";
+    canvas.style.height = canvas.style.height || canvas.height + "px";
+
+    // Resize canvas and scale future draws.
+    var scaleFactor = dpi / 96;
+    canvas.width = Math.ceil(canvas.width * scaleFactor);
+    canvas.height = Math.ceil(canvas.height * scaleFactor);
+    var ctx = canvas.getContext("2d");
+    ctx.scale(scaleFactor, scaleFactor);
+  }
+
+  // const canvas = document.getElementById("canv");
+  // setDPI(canvas, 192);
+  setDPI(canvas, 100);
+
+  const ctx = canvas.getContext("2d");
+  ctx.textBaseline = "top";
+  ctx.font = "1em Operator Mono SSm, monospace";
+  const metrics = ctx.measureText("m");
+
+  function easeInOutCubic(x) {
+    return x < 0.5 ? 4 * x * x * x : 1 - Math.pow(-2 * x + 2, 3) / 2;
+  }
+  function runAnimation(fn, duration) {
+    let t0 = performance.now();
+    let fixed = {};
+    requestAnimationFrame(function frame(t) {
+      let key = 0;
+      fn(
+        function fix(x) {
+          if (key in fixed) {
+            x = fixed[key];
+          } else {
+            fixed[key] = x;
+          }
+          key++;
+          return x;
+        },
+        function animate(x0, x1, ease = easeInOutCubic) {
+          return (
+            x0 * (1 - ease((t - t0) / duration)) +
+            x1 * ease((t - t0) / duration)
+          );
+        }
+      );
+
+      if (t < t0 + duration) {
+        requestAnimationFrame(frame);
+      }
+    });
+  }
+
+  function computePositions(chars) {
+    let { x, y } = chars[0];
+    for (let char of chars) {
+      char.x = x;
+      char.y = y;
+      if (char.c === "\n" || char.x > 700) {
+        x = 0;
+        y += 18;
+      } else {
+        x += metrics.width;
+      }
+    }
+  }
+
+  return {
+    computePositions,
+    runAnimation,
+    render(chars, startIdx = 0, endIdx = chars.length - 1) {
+      for (let i = startIdx; i <= endIdx; i++) {
+        const char = chars[i];
+        if (char.bgStyle) {
+          ctx.save();
+          ctx.fillStyle = char.bgStyle;
+          ctx.fillRect(char.x, char.y, metrics.width, 18);
+          ctx.restore();
+        }
+        ctx.fillStyle = char.fillStyle || "black";
+        ctx.fillText(char.c, char.x, char.y);
+      }
+    },
+    ctx,
+  };
+}
+
+let renderer;
+
+function initialize(canvas, mainText, shadowText) {
+  renderer = renderer || createRenderer(canvas);
+  renderer.ctx.clearRect(0, 0, 1000, 1000);
+  canvas.onmousedown = function (e) {
+    renderer.runAnimation(
+      (fix, animate) => {
+        for (let char of mainChars) {
+          if ("shadowIndex" in char) {
+            const shadowChar = shadowChars[char.shadowIndex];
+            char.x = animate(fix(char.x), shadowChar.x);
+            char.y = animate(fix(char.y), shadowChar.y);
+            char.bgStyle = `rgba(255, 192, 203, ${animate(0, 1)})`;
+          } else {
+            char.fillStyle = `rgba(0, 0, 0, ${animate(1, 0)})`;
+          }
+        }
+
+        renderer.ctx.clearRect(0, 0, 1000, 1000);
+
+        renderer.render(mainChars);
+
+        for (let createChars of createCharRuns) {
+          createChars.forEach(char => {
+            // char.bgStyle = `rgba(255, 192, 203, ${animate(0, 1)})`;
+            char.fillStyle = `rgba(0, 0, 0, ${animate(0, 1)})`;
+          });
+          renderer.render(createChars);
+        }
+      },
+      e.shiftKey ? 2000 : 500
+    );
+  };
+  document.onmouseup = function (e) {
+    renderer.runAnimation((fix, animate) => {
+      renderer.computePositions(mainChars);
+
+      for (let char of mainChars) {
+        if ("shadowIndex" in char) {
+          const shadowChar = shadowChars[char.shadowIndex];
+          char.x = animate(shadowChar.x, fix(char.x));
+          char.y = animate(shadowChar.y, fix(char.y));
+          char.bgStyle = `rgba(255, 192, 203, ${animate(1, 0)})`;
+        } else {
+          char.fillStyle = `rgba(0, 0, 0, ${animate(0, 1)})`;
+        }
+      }
+      renderer.ctx.clearRect(0, 0, 1000, 1000);
+      renderer.render(mainChars);
+
+      for (let createChars of createCharRuns) {
+        createChars.forEach(char => {
+          // char.bgStyle = `rgba(255, 192, 203, ${animate(1, 0)})`;
+          char.fillStyle = `rgba(0, 0, 0, ${animate(1, 0)})`;
+        });
+        renderer.render(createChars);
+      }
+    }, 1000);
+  };
+
+  const mainChars = mainText.split("").map(c => ({ c, x: 0, y: 0 }));
+  renderer.computePositions(mainChars);
+  renderer.render(mainChars);
+
+  const shadowChars = shadowText.split("").map(c => ({ c, x: 0, y: 0 }));
+  renderer.computePositions(shadowChars);
+
+  const differ = new diff_match_patch();
+  const diffs = differ.diff_main(mainText, shadowText);
+  differ.diff_cleanupSemantic(diffs);
+
+  let i = 0,
+    shadowI = 0;
+  const createCharRuns = [];
+  for (let { 0: kind, 1: text } of diffs) {
+    if (kind === 0) {
+      let textEnd = i + text.length;
+      while (i < textEnd) {
+        mainChars[i].shadowIndex = shadowI;
+        i++;
+        shadowI++;
+      }
+    } else if (kind === -1) {
+      let textEnd = i + text.length;
+      while (i < textEnd) {
+        // mainChars[i].shadowIndex = 0;
+        i++;
+      }
+    } else if (kind === 1) {
+      const createChars = [];
+      let textEnd = shadowI + text.length;
+      while (shadowI < textEnd) {
+        createChars.push({ ...shadowChars[shadowI] });
+        shadowI++;
+      }
+      createCharRuns.push(createChars);
+    }
+  }
+  window.mainChars = mainChars;
+  window.shadowChars = shadowChars;
+  window.diffs = diffs;
+  window.createCharRuns = createCharRuns;
+}
