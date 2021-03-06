@@ -76,16 +76,14 @@ module.exports = function (api) {
   switch (env) {
     case "sandbox":
       convertESM = false;
-      // envOpts.modules = false;
-      // envOpts.debug = true;
-      envOpts.targets = {
-        node: "12",
+      targets = {
+        node: "14",
       };
-      // envOpts.targets = {
-      //   chrome: "84",
-      //   firefox: "79",
-      //   safari: "13.1",
-      // };
+      envOpts.include = [
+        "proposal-optional-chaining",
+        "proposal-nullish-coalescing-operator",
+        "proposal-numeric-separator",
+      ];
       break;
     // Configs used during bundling builds.
     case "standalone":

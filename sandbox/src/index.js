@@ -44,7 +44,7 @@ let CONFIG = [
         },
       ],
     ],
-    plugins: [["@babel/plugin-transform-runtime", { useESModules: true }]],
+    // plugins: [["@babel/plugin-transform-runtime", { useESModules: true }]],
   },
   // {
   //   presets: [

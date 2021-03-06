@@ -99,11 +99,6 @@
       "eslint --format=codeframe"
     ]
   },
-  "husky": {
-    "hooks": {
-      "pre-commit": "lint-staged"
-    }
-  },
   "dependenciesMeta": {
     "core-js": {
       "built": false
