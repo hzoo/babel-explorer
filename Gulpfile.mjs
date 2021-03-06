@@ -13,7 +13,7 @@ import filter from "gulp-filter";
 import revertPath from "gulp-revert-path";
 import gulp from "gulp";
 import { rollup } from "rollup";
-import { babel as rollupBabel } from "@rollup/plugin-babel";
+import _rollupBabel from "@rollup/plugin-babel";
 import rollupCommonJs from "@rollup/plugin-commonjs";
 import rollupJson from "@rollup/plugin-json";
 import rollupNodePolyfills from "rollup-plugin-node-polyfills";
@@ -22,6 +22,7 @@ import rollupReplace from "@rollup/plugin-replace";
 import { terser as rollupTerser } from "rollup-plugin-terser";
 import _rollupDts from "rollup-plugin-dts";
 const { default: rollupDts } = _rollupDts;
+const { default: rollupBabel } = _rollupBabel;
 
 import rollupBabelSource from "./scripts/rollup-plugin-babel-source.js";
 import formatCode from "./scripts/utils/formatCode.js";

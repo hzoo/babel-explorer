@@ -250,7 +250,7 @@ NodePath.prototype.mark = function (
   this.addMetadata(this.node, options);
 };
 
-for (const type of (t.TYPES: Array<string>)) {
+for (const type of t.TYPES) {
   const typeKey = `is${type}`;
   const fn = t[typeKey];
   NodePath.prototype[typeKey] = function (opts) {
