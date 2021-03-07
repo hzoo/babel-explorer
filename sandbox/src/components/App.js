@@ -78,6 +78,37 @@ function mergeLoc(sourceAST, newAST, cb) {
   }
 }
 
+function traverseAST(sourceAST, cb) {
+  if (sourceAST.originalLoc) {
+    cb(sourceAST);
+  }
+
+  for (let key of Object.keys(sourceAST)) {
+    if (skipKeys[key]) continue;
+
+    let value = sourceAST[key];
+    if (!value) continue;
+
+    if (Array.isArray(value)) {
+      for (let i = 0; i < value.length; i++) {
+        if (value[i] && typeof value[i] === "object") {
+          if (!sourceAST[key][i]) continue;
+
+          if (value[i].originalLoc) {
+            cb(value[i]);
+          }
+          traverseAST(value[i], cb);
+        }
+      }
+    } else if (typeof value === "object") {
+      if (value.originalLoc) {
+        cb(value);
+      }
+      traverseAST(value, cb);
+    }
+  }
+}
+
 // No need to hardcode colors, just hash it and add values within some range
 // via https://gist.github.com/0x263b/2bdd90886c2036a1ad5bcf06d6e6fb37
 function stringtoHSL(string = "default", opts) {
@@ -157,6 +188,21 @@ function markNodeFromIndex(cm, type, data) {
   cm.doc.markText(cm.posFromIndex(start), cm.posFromIndex(end), {
     css: data.css || `background: ${color}`,
   });
+}
+
+function locMap(node, code) {
+  if (node.type === "BinaryExpression" || node.type === "LogicalExpression") {
+    let shadow = code.slice(node.left.end, node.right.start);
+    return {
+      start: node.left.end + shadow.indexOf(node.operator),
+      end: node.left.end + shadow.indexOf(node.operator) + node.operator.length,
+    };
+  } else if (node.type === "StringLiteral") {
+    return {
+      start: node.start + 1,
+      end: node.end - 1,
+    };
+  }
 }
 
 function CompiledOutput({
@@ -268,10 +314,11 @@ function CompiledOutput({
     try {
       let transformedNodes = [];
       let ranges = [];
+      let shadowIndexesMap = [];
       // retain the AST to use the metadata that has been added to nodes
       const { code, ast } = Babel.transformFromAstSync(
         sourceAST,
-        null,
+        source,
         processOptions(config, customPlugin)
       );
       // reparse the compiled output to get loc data
@@ -326,12 +373,33 @@ function CompiledOutput({
           markNodeFromIndex(window.sourceEditor, "source", metadata);
         }
       });
+
+      traverseAST(ast, node => {
+        if (node.originalLoc && node.originalLoc.start) {
+          let shadowNode = node.originalLoc.type ? locMap(node, code) : node;
+          if (shadowNode)
+            shadowIndexesMap.push({
+              mainStart: node.originalLoc.start,
+              mainEnd: node.originalLoc.end,
+              source: source.slice(
+                node.originalLoc.start,
+                node.originalLoc.end
+              ),
+              shadow: code.slice(shadowNode.start, shadowNode.end),
+              shadowStart: shadowNode.start,
+              shadowEnd: shadowNode.end,
+            });
+          return;
+        }
+      });
+
       gzipSize(code).then(s => setGzip(s));
       window.ranges = ranges;
       setCompiled({
         code,
         size: new Blob([code], { type: "text/plain" }).size,
         transformedNodes,
+        shadowIndexesMap,
         ranges,
         ast,
       });
@@ -350,8 +418,13 @@ function CompiledOutput({
       : "";
 
   useEffect(() => {
-    if (canvas.current && compiled.code) {
-      initialize(canvas.current, source, compiled.code);
+    if (canvas.current && compiled.code && !compiled.error) {
+      initialize(
+        canvas.current,
+        source,
+        compiled.code,
+        compiled.shadowIndexesMap
+      );
     }
   }, [compiled]);
 
@@ -696,6 +769,17 @@ function createRenderer(canvas) {
   function easeInOutCubic(x) {
     return x < 0.5 ? 4 * x * x * x : 1 - Math.pow(-2 * x + 2, 3) / 2;
   }
+  function easeInOutElastic(x) {
+    const c5 = (2 * Math.PI) / 4.5;
+
+    return x === 0
+      ? 0
+      : x === 1
+      ? 1
+      : x < 0.5
+      ? -(Math.pow(2, 20 * x - 10) * Math.sin((20 * x - 11.125) * c5)) / 2
+      : (Math.pow(2, -20 * x + 10) * Math.sin((20 * x - 11.125) * c5)) / 2 + 1;
+  }
   function runAnimation(fn, duration) {
     let t0 = performance.now();
     let fixed = {};
@@ -761,7 +845,7 @@ function createRenderer(canvas) {
 
 let renderer;
 
-function initialize(canvas, mainText, shadowText) {
+function initialize(canvas, mainText, shadowText, shadowIndexesMap) {
   renderer = renderer || createRenderer(canvas);
   renderer.ctx.clearRect(0, 0, 1000, 1000);
   canvas.onmousedown = function (e) {
@@ -827,39 +911,85 @@ function initialize(canvas, mainText, shadowText) {
   const shadowChars = shadowText.split("").map(c => ({ c, x: 0, y: 0 }));
   renderer.computePositions(shadowChars);
 
-  const differ = new diff_match_patch();
-  const diffs = differ.diff_main(mainText, shadowText);
-  differ.diff_cleanupSemantic(diffs);
+  shadowIndexesMap = shadowIndexesMap.sort((a, b) =>
+    a.shadowStart > b.shadowStart ? 1 : -1
+  );
+  let debugChar = [];
+  const createCharRuns = [];
+  for (const [i, value] of shadowIndexesMap.entries()) {
+    let { mainEnd: end, mainStart: index } = value;
+    let createChars = [];
+    for (
+      let j = i === 0 ? 0 : shadowIndexesMap[i - 1].shadowEnd;
+      j < value.shadowStart;
+      j++
+    ) {
+      createChars.push({ ...shadowChars[j] });
+    }
+    if (createChars.length) createCharRuns.push(createChars);
+
+    // end
+    if (i === shadowIndexesMap.length - 1) {
+      createChars = [];
+      for (let j = value.shadowEnd; j < shadowChars.length; j++) {
+        createChars.push({ ...shadowChars[j] });
+      }
+      if (createChars.length) createCharRuns.push(createChars);
+    }
+
+    // mainChars[6].shadowIndex = 4;
+    while (index < end) {
+      mainChars[index].shadowIndex =
+        value.shadowStart + (index - value.mainStart);
+      index++;
+    }
+  }
+
+  console.log(shadowIndexesMap);
+  console.log(createCharRuns);
 
   let i = 0,
     shadowI = 0;
-  const createCharRuns = [];
-  for (let { 0: kind, 1: text } of diffs) {
-    if (kind === 0) {
-      let textEnd = i + text.length;
-      while (i < textEnd) {
-        mainChars[i].shadowIndex = shadowI;
-        i++;
-        shadowI++;
-      }
-    } else if (kind === -1) {
-      let textEnd = i + text.length;
-      while (i < textEnd) {
-        // mainChars[i].shadowIndex = 0;
-        i++;
-      }
-    } else if (kind === 1) {
-      const createChars = [];
-      let textEnd = shadowI + text.length;
-      while (shadowI < textEnd) {
-        createChars.push({ ...shadowChars[shadowI] });
-        shadowI++;
-      }
-      createCharRuns.push(createChars);
-    }
-  }
+
+  // for (let i = 0; i < 4; i++) {
+  //   createChars.push({ ...shadowChars[i] });
+  // }
+  // createCharRuns.push(createChars);
+  // for (let i = 6; i < shadowChars.length; i++) {
+  //   createChars.push({ ...shadowChars[i] });
+  // }
+  // createCharRuns.push(createChars);
+
+  // const differ = new diff_match_patch();
+  // const diffs = differ.diff_main(mainText, shadowText);
+  // differ.diff_cleanupSemantic(diffs);
+
+  // for (let { 0: kind, 1: text } of diffs) {
+  //   if (kind === 0) {
+  //     let textEnd = i + text.length;
+  //     while (i < textEnd) {
+  //       mainChars[i].shadowIndex = shadowI;
+  //       i++;
+  //       shadowI++;
+  //     }
+  //   } else if (kind === -1) {
+  //     let textEnd = i + text.length;
+  //     while (i < textEnd) {
+  //       // mainChars[i].shadowIndex = 0;
+  //       i++;
+  //     }
+  //   } else if (kind === 1) {
+  //     const createChars = [];
+  //     let textEnd = shadowI + text.length;
+  //     while (shadowI < textEnd) {
+  //       createChars.push({ ...shadowChars[shadowI] });
+  //       shadowI++;
+  //     }
+  //     createCharRuns.push(createChars);
+  //   }
+  // }
   window.mainChars = mainChars;
   window.shadowChars = shadowChars;
-  window.diffs = diffs;
-  window.createCharRuns = createCharRuns;
+  //   window.diffs = diffs;
+  //   window.createCharRuns = createCharRuns;
 }

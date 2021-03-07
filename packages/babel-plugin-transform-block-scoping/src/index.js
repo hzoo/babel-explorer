@@ -24,6 +24,15 @@ export default declare((api, opts) => {
       VariableDeclaration(path) {
         const { node, parent, scope } = path;
         if (!isBlockScoped(node)) return;
+        path.traverse({
+          "Identifier|Literal"(path) {
+            if (!path.node.originalLoc)
+              path.node.originalLoc = {
+                start: path.node.start,
+                end: path.node.end,
+              };
+          },
+        });
         convertBlockScopedToVar(path, null, parent, scope, true);
 
         if (node._tdzThis) {

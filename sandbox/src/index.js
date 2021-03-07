@@ -3,28 +3,40 @@ import ReactDOM from "react-dom";
 import App from "./components/App";
 
 let GIST = false;
-let SOURCE = `const foo = (...a) => \`\${a?.b}\`;
-enum Direction {
-  Left,
-  Up,
-  Down,
-  Right
-}
-class A {
-  a() {
-    for (b of []) {
-      \`a\${c?.[1_0_0_0_0]}\`;
-      var z = [...f];
-    }
-
-    let d = {
-      f() {},
-      x
-    };
-
-    return <a></a>;
-  }
-}`;
+let SOURCE = `
+const profile = (
+  <section
+    css={{
+      background: colors.dark,
+      color: colors.white,
+      paddingTop: 45,
+      paddingBottom: 25,
+    }}
+  >
+    <Container>
+      <Flex
+        valign="center"
+        halign="center"
+        css={{
+          flexWrap: "wrap",
+          justifyContent: "center",
+        }}
+      >
+        <CtaItem>
+          <ButtonLink to="/docs/getting-started.html" type="primary">
+            Get Started
+          </ButtonLink>
+        </CtaItem>
+        <CtaItem>
+          <ButtonLink to="/tutorial/tutorial.html" type="secondary">
+            Take the Tutorial
+          </ButtonLink>
+        </CtaItem>
+      </Flex>
+    </Container>
+  </section>
+);
+`.trim();
 let CONFIG = [
   {
     presets: [
@@ -32,7 +44,14 @@ let CONFIG = [
         "@babel/preset-env",
         { loose: true, modules: false, shippedProposals: true },
       ],
-      "@babel/preset-react",
+      [
+        "@babel/preset-react",
+        {
+          runtime: "automatic",
+          importSource: "react",
+          development: false,
+        },
+      ],
       [
         "@babel/preset-typescript",
         {
@@ -76,6 +95,13 @@ let CONFIG = [
 let PLUGIN = `export default function customPlugin(babel) {
   return {
     visitor: {
+      "Identifier|Literal"(path) {
+        if (!path.node.originalLoc)
+          path.node.originalLoc = {
+            start: path.node.start,
+            end: path.node.end,
+          };
+      },
       Identifier(path) {
         // new method
         path.mark();

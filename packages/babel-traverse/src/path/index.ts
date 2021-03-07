@@ -242,6 +242,36 @@ NodePath.prototype.addMetadata = function (node, metaData) {
   } else {
     node.babelPlugin = this.node.babelPlugin.concat(newNode);
   }
+
+  let code = this.hub.file.code;
+  if (code)
+    this.traverse({
+      "MemberExpression|Identifier|Literal"(path) {
+        if (!path.node.originalLoc)
+          path.node.originalLoc = {
+            start: path.node.start,
+            end: path.node.end,
+          };
+      },
+      "BinaryExpression|LogicalExpression"(path) {
+        if (!path.node.originalLoc) {
+          let shadow = code.slice(path.node.left.end, path.node.right.start);
+          path.node.originalLoc = {
+            start: path.node.left.end + shadow.indexOf(path.node.operator),
+            end:
+              path.node.left.end +
+              shadow.indexOf(path.node.operator) +
+              path.node.operator.length,
+            type: "BinaryExpression",
+          };
+          // path.node.originalLoc = {
+          //   start: path.node.left.end,
+          //   end: path.node.right.start,
+          //   type: "BinaryExpression",
+          // };
+        }
+      },
+    });
 };
 
 NodePath.prototype.mark = function (

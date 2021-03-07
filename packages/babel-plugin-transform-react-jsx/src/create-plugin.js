@@ -559,7 +559,14 @@ You can set \`throwIfNamespace: false\` to bypass this warning.`,
       }
 
       if (t.react.isCompatTag(tagName)) {
-        return t.stringLiteral(tagName);
+        let temp = t.stringLiteral(tagName);
+        temp.originalLoc = {
+          start: openingPath.node.name.start,
+          end: openingPath.node.name.end,
+          // to: "string",
+          type: "StringLiteral",
+        };
+        return temp;
       } else {
         return tagExpr;
       }
