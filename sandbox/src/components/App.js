@@ -766,20 +766,75 @@ function createRenderer(canvas) {
   ctx.font = "1em Operator Mono SSm, monospace";
   const metrics = ctx.measureText("m");
 
-  function easeInOutCubic(x) {
-    return x < 0.5 ? 4 * x * x * x : 1 - Math.pow(-2 * x + 2, 3) / 2;
-  }
-  function easeInOutElastic(x) {
-    const c5 = (2 * Math.PI) / 4.5;
+  let eases = {
+    easeInSine: x => 1 - Math.cos((x * Math.PI) / 2),
+    easeInCubic: x => x * x * x,
+    easeInQuint: x => x * x * x * x * x,
+    easeInCirc: x => 1 - Math.sqrt(1 - Math.pow(x, 2)),
+    easeInElastic: x => {
+      const c4 = (2 * Math.PI) / 3;
 
-    return x === 0
-      ? 0
-      : x === 1
-      ? 1
-      : x < 0.5
-      ? -(Math.pow(2, 20 * x - 10) * Math.sin((20 * x - 11.125) * c5)) / 2
-      : (Math.pow(2, -20 * x + 10) * Math.sin((20 * x - 11.125) * c5)) / 2 + 1;
+      return x === 0
+        ? 0
+        : x === 1
+        ? 1
+        : -Math.pow(2, 10 * x - 10) * Math.sin((x * 10 - 10.75) * c4);
+    },
+    easeOutSine: x => Math.sin((x * Math.PI) / 2),
+    easeOutCubic: x => 1 - Math.pow(1 - x, 3),
+    easeOutQuint: x => 1 - Math.pow(1 - x, 5),
+    easeOutCirc: x => Math.sqrt(1 - Math.pow(x - 1, 2)),
+    easeOutElastic: x => {
+      const c4 = (2 * Math.PI) / 3;
+
+      return x === 0
+        ? 0
+        : x === 1
+        ? 1
+        : Math.pow(2, -10 * x) * Math.sin((x * 10 - 0.75) * c4) + 1;
+    },
+    easeInOutSine: x => -(Math.cos(Math.PI * x) - 1) / 2,
+    easeInOutCubic: x =>
+      x < 0.5 ? 4 * x * x * x : 1 - Math.pow(-2 * x + 2, 3) / 2,
+    easeInOutQuint: x =>
+      x < 0.5 ? 16 * x * x * x * x * x : 1 - Math.pow(-2 * x + 2, 5) / 2,
+    easeInOutCirc: x => {
+      return x < 0.5
+        ? (1 - Math.sqrt(1 - Math.pow(2 * x, 2))) / 2
+        : (Math.sqrt(1 - Math.pow(-2 * x + 2, 2)) + 1) / 2;
+    },
+    easeInOutElastic: x => {
+      const c5 = (2 * Math.PI) / 4.5;
+
+      return x === 0
+        ? 0
+        : x === 1
+        ? 1
+        : x < 0.5
+        ? -(Math.pow(2, 20 * x - 10) * Math.sin((20 * x - 11.125) * c5)) / 2
+        : (Math.pow(2, -20 * x + 10) * Math.sin((20 * x - 11.125) * c5)) / 2 +
+          1;
+    },
+    easeOutExpo: x => (x === 1 ? 1 : 1 - Math.pow(2, -10 * x)),
+    easeInOutExpo: x => {
+      return x === 0
+        ? 0
+        : x === 1
+        ? 1
+        : x < 0.5
+        ? Math.pow(2, 20 * x - 10) / 2
+        : (2 - Math.pow(2, -20 * x + 10)) / 2;
+    },
+  };
+
+  let easeFn = Object.keys(eases)[
+    (Object.keys(eases).length * Math.random()) << 0
+  ];
+
+  function easeChoice(x) {
+    return eases["easeOutExpo"](x);
   }
+
   function runAnimation(fn, duration) {
     let t0 = performance.now();
     let fixed = {};
@@ -795,7 +850,7 @@ function createRenderer(canvas) {
           key++;
           return x;
         },
-        function animate(x0, x1, ease = easeInOutCubic) {
+        function animate(x0, x1, ease = easeChoice) {
           return (
             x0 * (1 - ease((t - t0) / duration)) +
             x1 * ease((t - t0) / duration)
