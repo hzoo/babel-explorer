@@ -743,308 +743,224 @@ const ToggleRoot = styled.div`
 //   }
 // `;
 
-function createRenderer(canvas) {
-  function setDPI(canvas, dpi) {
-    // Set up CSS size.
-    canvas.style.width = canvas.style.width || canvas.width + "px";
-    canvas.style.height = canvas.style.height || canvas.height + "px";
+function initialize(canvas, mainText, shadowText, shadowIndexesMap) {
+  // let mainText = JSON.stringify(obj);
+  // target text (what the source text animates into when you mousedown)
+  //  let shadowText = JSON.stringify(obj, null, 2);
 
-    // Resize canvas and scale future draws.
-    var scaleFactor = dpi / 96;
-    canvas.width = Math.ceil(canvas.width * scaleFactor);
-    canvas.height = Math.ceil(canvas.height * scaleFactor);
-    var ctx = canvas.getContext("2d");
-    ctx.scale(scaleFactor, scaleFactor);
-  }
+  //  const canvas = document.querySelector('canvas');
 
-  // const canvas = document.getElementById("canv");
-  // setDPI(canvas, 192);
-  setDPI(canvas, 100);
+  const Renderer = (function () {
+    function setDPI(canvas, dpi) {
+      // Set up CSS size.
+      canvas.style.width = canvas.style.width || canvas.width + "px";
+      canvas.style.height = canvas.style.height || canvas.height + "px";
 
-  const ctx = canvas.getContext("2d");
-  ctx.textBaseline = "top";
-  ctx.font = "1em Operator Mono SSm, monospace";
-  const metrics = ctx.measureText("m");
+      // Resize canvas and scale future draws.
+      var scaleFactor = dpi / 96;
+      canvas.width = Math.ceil(canvas.width * scaleFactor);
+      canvas.height = Math.ceil(canvas.height * scaleFactor);
+      var ctx = canvas.getContext("2d");
+      ctx.scale(scaleFactor, scaleFactor);
+    }
+    setDPI(canvas, 192);
 
-  let eases = {
-    easeInSine: x => 1 - Math.cos((x * Math.PI) / 2),
-    easeInCubic: x => x * x * x,
-    easeInQuint: x => x * x * x * x * x,
-    easeInCirc: x => 1 - Math.sqrt(1 - Math.pow(x, 2)),
-    easeInElastic: x => {
-      const c4 = (2 * Math.PI) / 3;
+    const ctx = canvas.getContext("2d");
+    ctx.textBaseline = "top";
+    ctx.font = "1em Operator Mono SSm, monospace";
+    const metrics = ctx.measureText("m");
+    console.log(metrics);
 
-      return x === 0
-        ? 0
-        : x === 1
-        ? 1
-        : -Math.pow(2, 10 * x - 10) * Math.sin((x * 10 - 10.75) * c4);
-    },
-    easeOutSine: x => Math.sin((x * Math.PI) / 2),
-    easeOutCubic: x => 1 - Math.pow(1 - x, 3),
-    easeOutQuint: x => 1 - Math.pow(1 - x, 5),
-    easeOutCirc: x => Math.sqrt(1 - Math.pow(x - 1, 2)),
-    easeOutElastic: x => {
-      const c4 = (2 * Math.PI) / 3;
-
-      return x === 0
-        ? 0
-        : x === 1
-        ? 1
-        : Math.pow(2, -10 * x) * Math.sin((x * 10 - 0.75) * c4) + 1;
-    },
-    easeInOutSine: x => -(Math.cos(Math.PI * x) - 1) / 2,
-    easeInOutCubic: x =>
-      x < 0.5 ? 4 * x * x * x : 1 - Math.pow(-2 * x + 2, 3) / 2,
-    easeInOutQuint: x =>
-      x < 0.5 ? 16 * x * x * x * x * x : 1 - Math.pow(-2 * x + 2, 5) / 2,
-    easeInOutCirc: x => {
-      return x < 0.5
-        ? (1 - Math.sqrt(1 - Math.pow(2 * x, 2))) / 2
-        : (Math.sqrt(1 - Math.pow(-2 * x + 2, 2)) + 1) / 2;
-    },
-    easeInOutElastic: x => {
-      const c5 = (2 * Math.PI) / 4.5;
-
-      return x === 0
-        ? 0
-        : x === 1
-        ? 1
-        : x < 0.5
-        ? -(Math.pow(2, 20 * x - 10) * Math.sin((20 * x - 11.125) * c5)) / 2
-        : (Math.pow(2, -20 * x + 10) * Math.sin((20 * x - 11.125) * c5)) / 2 +
-          1;
-    },
-    easeOutExpo: x => (x === 1 ? 1 : 1 - Math.pow(2, -10 * x)),
-    easeInOutExpo: x => {
-      return x === 0
-        ? 0
-        : x === 1
-        ? 1
-        : x < 0.5
-        ? Math.pow(2, 20 * x - 10) / 2
-        : (2 - Math.pow(2, -20 * x + 10)) / 2;
-    },
-  };
-
-  let easeFn = Object.keys(eases)[
-    (Object.keys(eases).length * Math.random()) << 0
-  ];
-
-  function easeChoice(x) {
-    return eases["easeOutExpo"](x);
-  }
-
-  function runAnimation(fn, duration) {
-    let t0 = performance.now();
-    let fixed = {};
-    requestAnimationFrame(function frame(t) {
-      let key = 0;
-      fn(
-        function fix(x) {
-          if (key in fixed) {
-            x = fixed[key];
-          } else {
-            fixed[key] = x;
-          }
-          key++;
-          return x;
-        },
-        function animate(x0, x1, ease = easeChoice) {
-          return (
-            x0 * (1 - ease((t - t0) / duration)) +
-            x1 * ease((t - t0) / duration)
-          );
+    function computePositions(chars) {
+      let { x, y } = chars[0];
+      for (let char of chars) {
+        char.x = x;
+        char.y = y;
+        if (char.c === "\n" || char.x > 700) {
+          x = 0;
+          y += metrics.fontBoundingBoxDescent + 1;
+        } else {
+          x += metrics.width;
         }
-      );
-
-      if (t < t0 + duration) {
-        requestAnimationFrame(frame);
-      }
-    });
-  }
-
-  function computePositions(chars) {
-    let { x, y } = chars[0];
-    for (let char of chars) {
-      char.x = x;
-      char.y = y;
-      if (char.c === "\n" || char.x > 700) {
-        x = 0;
-        y += 18;
-      } else {
-        x += metrics.width;
       }
     }
-  }
 
-  return {
-    computePositions,
-    runAnimation,
-    render(chars, startIdx = 0, endIdx = chars.length - 1) {
-      for (let i = startIdx; i <= endIdx; i++) {
-        const char = chars[i];
-        if (char.bgStyle) {
-          ctx.save();
-          ctx.fillStyle = char.bgStyle;
-          ctx.fillRect(char.x, char.y, metrics.width, 18);
-          ctx.restore();
+    return {
+      computePositions,
+      charIndexUnder(x, y) {
+        for (let [i, char] of mainChars.entries()) {
+          if (
+            char.x < x &&
+            char.y < y &&
+            x < char.x + metrics.width &&
+            y < char.y + metrics.fontBoundingBoxDescent + 1
+          ) {
+            return i;
+          }
         }
-        ctx.fillStyle = char.fillStyle || "black";
-        ctx.fillText(char.c, char.x, char.y);
+      },
+      clear() {
+        ctx.clearRect(0, 0, 1000, 600);
+      },
+      render(chars, startIdx = 0, endIdx = chars.length - 1) {
+        for (let i = startIdx; i <= endIdx; i++) {
+          const char = chars[i];
+          const x = "animX" in char ? char.animX : char.x;
+          const y = "animY" in char ? char.animY : char.y;
+          if (char.bgStyle) {
+            ctx.save();
+            ctx.fillStyle = char.bgStyle;
+            ctx.fillRect(x, y, metrics.width, 18);
+            ctx.restore();
+          }
+          ctx.fillStyle = char.fillStyle || "black";
+          ctx.fillText(char.c, x, y);
+        }
+      },
+      ctx,
+    };
+  })();
+
+  const Animator = (function () {
+    const renderFrame = (function () {
+      function easeInOutCubic(x) {
+        return x < 0.5 ? 4 * x * x * x : 1 - Math.pow(-2 * x + 2, 3) / 2;
       }
-    },
-    ctx,
-  };
-}
 
-let renderer;
+      function animate(x0, x1, t, ease = easeInOutCubic) {
+        return x0 * (1 - ease(t)) + x1 * ease(t);
+      }
 
-function initialize(canvas, mainText, shadowText, shadowIndexesMap) {
-  renderer = renderer || createRenderer(canvas);
-  renderer.ctx.clearRect(0, 0, 1000, 1000);
-  canvas.onmousedown = function (e) {
-    renderer.runAnimation(
-      (fix, animate) => {
+      return function frame(t) {
         for (let char of mainChars) {
           if ("shadowIndex" in char) {
             const shadowChar = shadowChars[char.shadowIndex];
-            char.x = animate(fix(char.x), shadowChar.x);
-            char.y = animate(fix(char.y), shadowChar.y);
-            char.bgStyle = `rgba(255, 192, 203, ${animate(0, 1)})`;
+            char.animX = animate(char.x, shadowChar.x, t);
+            char.animY = animate(char.y, shadowChar.y, t);
+            char.bgStyle = `rgba(255, 192, 203, ${animate(0, 1, t)})`;
           } else {
-            char.fillStyle = `rgba(0, 0, 0, ${animate(1, 0)})`;
+            char.fillStyle = `rgba(0, 0, 0, ${animate(1, 0, t)})`;
           }
         }
 
-        renderer.ctx.clearRect(0, 0, 1000, 1000);
-
-        renderer.render(mainChars);
+        Renderer.clear();
+        Renderer.render(mainChars);
 
         for (let createChars of createCharRuns) {
           createChars.forEach(char => {
-            // char.bgStyle = `rgba(255, 192, 203, ${animate(0, 1)})`;
-            char.fillStyle = `rgba(0, 0, 0, ${animate(0, 1)})`;
+            char.fillStyle = `rgba(0, 0, 0, ${animate(0, 1, t)})`;
           });
-          renderer.render(createChars);
+          Renderer.render(createChars);
         }
-      },
-      e.shiftKey ? 2000 : 500
-    );
-  };
-  document.onmouseup = function (e) {
-    renderer.runAnimation((fix, animate) => {
-      renderer.computePositions(mainChars);
+      };
+    })();
 
-      for (let char of mainChars) {
-        if ("shadowIndex" in char) {
-          const shadowChar = shadowChars[char.shadowIndex];
-          char.x = animate(shadowChar.x, fix(char.x));
-          char.y = animate(shadowChar.y, fix(char.y));
-          char.bgStyle = `rgba(255, 192, 203, ${animate(1, 0)})`;
+    let target = 0,
+      rate,
+      slowMode;
+
+    let t = 0;
+    requestAnimationFrame(timestamp => {
+      (function frame(prevTimestamp, timestamp) {
+        if (Math.abs(target - t) > 0.01) {
+          t += ((target - t) / (timestamp - prevTimestamp)) * rate;
+          renderFrame(t);
         } else {
-          char.fillStyle = `rgba(0, 0, 0, ${animate(0, 1)})`;
+          // FIXME: stop animation
         }
-      }
-      renderer.ctx.clearRect(0, 0, 1000, 1000);
-      renderer.render(mainChars);
 
-      for (let createChars of createCharRuns) {
-        createChars.forEach(char => {
-          // char.bgStyle = `rgba(255, 192, 203, ${animate(1, 0)})`;
-          char.fillStyle = `rgba(0, 0, 0, ${animate(1, 0)})`;
-        });
-        renderer.render(createChars);
-      }
-    }, 1000);
-  };
+        requestAnimationFrame(newTimestamp => frame(timestamp, newTimestamp));
+      })(timestamp - 20, timestamp);
+    });
+
+    return {
+      get target() {
+        return target;
+      },
+      set target(t) {
+        target = t;
+        // FIXME: dynamically stop/start animation
+      },
+      get rate() {
+        return rate;
+      },
+      set rate(s) {
+        rate = s;
+      },
+      get slowMode() {
+        return slowMode;
+      },
+      set slowMode(sm) {
+        slowMode = sm;
+      },
+    };
+  })();
 
   const mainChars = mainText.split("").map(c => ({ c, x: 0, y: 0 }));
-  renderer.computePositions(mainChars);
-  renderer.render(mainChars);
+  Renderer.computePositions(mainChars);
+  Renderer.render(mainChars);
 
   const shadowChars = shadowText.split("").map(c => ({ c, x: 0, y: 0 }));
-  renderer.computePositions(shadowChars);
+  Renderer.computePositions(shadowChars);
 
-  shadowIndexesMap = shadowIndexesMap.sort((a, b) =>
-    a.shadowStart > b.shadowStart ? 1 : -1
-  );
-  let debugChar = [];
-  const createCharRuns = [];
-  for (const [i, value] of shadowIndexesMap.entries()) {
-    let { mainEnd: end, mainStart: index } = value;
-    let createChars = [];
-    for (
-      let j = i === 0 ? 0 : shadowIndexesMap[i - 1].shadowEnd;
-      j < value.shadowStart;
-      j++
-    ) {
-      createChars.push({ ...shadowChars[j] });
+  canvas.onmousemove = function (e) {
+    const charIdx = Renderer.charIndexUnder(e.offsetX, e.offsetY);
+    const char = mainChars[charIdx];
+    if (!char) {
+      document.body.style.cursor = "auto";
+      return;
     }
-    if (createChars.length) createCharRuns.push(createChars);
 
-    // end
-    if (i === shadowIndexesMap.length - 1) {
-      createChars = [];
-      for (let j = value.shadowEnd; j < shadowChars.length; j++) {
+    document.body.style.cursor = "pointer";
+  };
+  canvas.onmousedown = canvas.ontouchstart = function (e) {
+    Animator.target = 1;
+    Animator.rate = 1;
+  };
+  canvas.onmouseup = canvas.ontouchend = function (e) {
+    Animator.target = 0;
+    Animator.rate = 2;
+  };
+  document.onkeydown = document.onkeyup = function (e) {
+    Animator.slowMode = e.shiftKey;
+  };
+
+  const createCharRuns = (() => {
+    shadowIndexesMap = shadowIndexesMap.sort((a, b) =>
+      a.shadowStart > b.shadowStart ? 1 : -1
+    );
+    const result = [];
+    for (const [i, value] of shadowIndexesMap.entries()) {
+      let { mainEnd: end, mainStart: index } = value;
+      let createChars = [];
+      for (
+        let j = i === 0 ? 0 : shadowIndexesMap[i - 1].shadowEnd;
+        j < value.shadowStart;
+        j++
+      ) {
         createChars.push({ ...shadowChars[j] });
       }
-      if (createChars.length) createCharRuns.push(createChars);
+      if (createChars.length) result.push(createChars);
+
+      // end
+      if (i === shadowIndexesMap.length - 1) {
+        createChars = [];
+        for (let j = value.shadowEnd; j < shadowChars.length; j++) {
+          createChars.push({ ...shadowChars[j] });
+        }
+        if (createChars.length) result.push(createChars);
+      }
+
+      // mainChars[6].shadowIndex = 4;
+      while (index < end) {
+        mainChars[index].shadowIndex =
+          value.shadowStart + (index - value.mainStart);
+        index++;
+      }
     }
 
-    // mainChars[6].shadowIndex = 4;
-    while (index < end) {
-      mainChars[index].shadowIndex =
-        value.shadowStart + (index - value.mainStart);
-      index++;
-    }
-  }
-
-  console.log(shadowIndexesMap);
-  console.log(createCharRuns);
-
-  let i = 0,
-    shadowI = 0;
-
-  // for (let i = 0; i < 4; i++) {
-  //   createChars.push({ ...shadowChars[i] });
-  // }
-  // createCharRuns.push(createChars);
-  // for (let i = 6; i < shadowChars.length; i++) {
-  //   createChars.push({ ...shadowChars[i] });
-  // }
-  // createCharRuns.push(createChars);
-
-  // const differ = new diff_match_patch();
-  // const diffs = differ.diff_main(mainText, shadowText);
-  // differ.diff_cleanupSemantic(diffs);
-
-  // for (let { 0: kind, 1: text } of diffs) {
-  //   if (kind === 0) {
-  //     let textEnd = i + text.length;
-  //     while (i < textEnd) {
-  //       mainChars[i].shadowIndex = shadowI;
-  //       i++;
-  //       shadowI++;
-  //     }
-  //   } else if (kind === -1) {
-  //     let textEnd = i + text.length;
-  //     while (i < textEnd) {
-  //       // mainChars[i].shadowIndex = 0;
-  //       i++;
-  //     }
-  //   } else if (kind === 1) {
-  //     const createChars = [];
-  //     let textEnd = shadowI + text.length;
-  //     while (shadowI < textEnd) {
-  //       createChars.push({ ...shadowChars[shadowI] });
-  //       shadowI++;
-  //     }
-  //     createCharRuns.push(createChars);
-  //   }
-  // }
-  window.mainChars = mainChars;
-  window.shadowChars = shadowChars;
-  //   window.diffs = diffs;
-  //   window.createCharRuns = createCharRuns;
+    console.log(shadowIndexesMap);
+    console.log(result);
+    return result;
+  })();
 }
