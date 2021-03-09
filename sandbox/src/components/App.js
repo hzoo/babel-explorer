@@ -35,6 +35,9 @@ const skipKeys = {
   leadingComments: 1,
   innerComments: 1,
   trailingComments: 1,
+  type: 1,
+  range: 1,
+  comments: 1,
 };
 
 function mergeLoc(sourceAST, newAST, cb) {
@@ -79,10 +82,6 @@ function mergeLoc(sourceAST, newAST, cb) {
 }
 
 function traverseAST(sourceAST, cb) {
-  if (sourceAST.originalLoc) {
-    cb(sourceAST);
-  }
-
   for (let key of Object.keys(sourceAST)) {
     if (skipKeys[key]) continue;
 
@@ -315,6 +314,7 @@ function CompiledOutput({
       let transformedNodes = [];
       let ranges = [];
       let shadowIndexesMap = [];
+      let newIndexesMap = [];
       // retain the AST to use the metadata that has been added to nodes
       const { code, ast } = Babel.transformFromAstSync(
         sourceAST,
@@ -375,20 +375,28 @@ function CompiledOutput({
       });
 
       traverseAST(ast, node => {
-        if (node.originalLoc && node.originalLoc.start) {
-          let shadowNode = node.originalLoc.type ? locMap(node, code) : node;
-          if (shadowNode)
-            shadowIndexesMap.push({
-              mainStart: node.originalLoc.start,
-              mainEnd: node.originalLoc.end,
-              source: source.slice(
-                node.originalLoc.start,
-                node.originalLoc.end
-              ),
-              shadow: code.slice(shadowNode.start, shadowNode.end),
-              shadowStart: shadowNode.start,
-              shadowEnd: shadowNode.end,
+        if (node.originalLoc) {
+          if (node.originalLoc.start) {
+            let shadowNode = node.originalLoc.type ? locMap(node, code) : node;
+            if (shadowNode)
+              shadowIndexesMap.push({
+                mainStart: node.originalLoc.start,
+                mainEnd: node.originalLoc.end,
+                source: source.slice(
+                  node.originalLoc.start,
+                  node.originalLoc.end
+                ),
+                shadow: code.slice(shadowNode.start, shadowNode.end),
+                shadowStart: shadowNode.start,
+                shadowEnd: shadowNode.end,
+              });
+          } else {
+            newIndexesMap.push({
+              shadow: code.slice(node.start, node.end),
+              shadowStart: node.start,
+              shadowEnd: node.end,
             });
+          }
           return;
         }
       });
@@ -400,6 +408,7 @@ function CompiledOutput({
         size: new Blob([code], { type: "text/plain" }).size,
         transformedNodes,
         shadowIndexesMap,
+        newIndexesMap,
         ranges,
         ast,
       });
@@ -423,7 +432,8 @@ function CompiledOutput({
         canvas.current,
         source,
         compiled.code,
-        compiled.shadowIndexesMap
+        compiled.shadowIndexesMap,
+        compiled.newIndexesMap
       );
     }
   }, [compiled]);
@@ -614,7 +624,12 @@ export default function App({
             })}
         </Section>
       </Root>
-      <canvas width="800" height="1000" ref={canvas}></canvas>
+      <canvas
+        width="1200"
+        height="2000"
+        ref={canvas}
+        style={{ background: "rgba(0, 0, 0, 0.1)" }}
+      ></canvas>
     </>
   );
 }
@@ -647,7 +662,7 @@ const Root = styled.div`
   display: flex;
   flex-direction: column;
   // height: 100%;
-  height: 100vh;
+  // height: 100vh;
   padding: 4px;
 
   font-family: sans-serif;
@@ -743,83 +758,89 @@ const ToggleRoot = styled.div`
 //   }
 // `;
 
-function initialize(canvas, mainText, shadowText, shadowIndexesMap) {
-  // let mainText = JSON.stringify(obj);
-  // target text (what the source text animates into when you mousedown)
-  //  let shadowText = JSON.stringify(obj, null, 2);
+function createRenderer(canvas, mainChars) {
+  function setDPI(canvas, dpi) {
+    // Set up CSS size.
+    canvas.style.width = canvas.style.width || canvas.width + "px";
+    canvas.style.height = canvas.style.height || canvas.height + "px";
 
-  //  const canvas = document.querySelector('canvas');
+    // Resize canvas and scale future draws.
+    var scaleFactor = dpi / 96;
+    canvas.width = Math.ceil(canvas.width * scaleFactor);
+    canvas.height = Math.ceil(canvas.height * scaleFactor);
+    var ctx = canvas.getContext("2d");
+    ctx.scale(scaleFactor, scaleFactor);
+  }
+  setDPI(canvas, 192);
 
-  const Renderer = (function () {
-    function setDPI(canvas, dpi) {
-      // Set up CSS size.
-      canvas.style.width = canvas.style.width || canvas.width + "px";
-      canvas.style.height = canvas.style.height || canvas.height + "px";
+  const ctx = canvas.getContext("2d");
+  ctx.textBaseline = "top";
+  ctx.font = "1em Operator Mono SSm, monospace";
+  const metrics = ctx.measureText("m");
+  console.log(metrics);
 
-      // Resize canvas and scale future draws.
-      var scaleFactor = dpi / 96;
-      canvas.width = Math.ceil(canvas.width * scaleFactor);
-      canvas.height = Math.ceil(canvas.height * scaleFactor);
-      var ctx = canvas.getContext("2d");
-      ctx.scale(scaleFactor, scaleFactor);
-    }
-    setDPI(canvas, 192);
-
-    const ctx = canvas.getContext("2d");
-    ctx.textBaseline = "top";
-    ctx.font = "1em Operator Mono SSm, monospace";
-    const metrics = ctx.measureText("m");
-    console.log(metrics);
-
-    function computePositions(chars) {
-      let { x, y } = chars[0];
-      for (let char of chars) {
-        char.x = x;
-        char.y = y;
-        if (char.c === "\n" || char.x > 700) {
-          x = 0;
-          y += metrics.fontBoundingBoxDescent + 1;
-        } else {
-          x += metrics.width;
-        }
+  function computePositions(chars) {
+    let { x, y } = chars[0];
+    for (let char of chars) {
+      char.x = x;
+      char.y = y;
+      if (char.c === "\n" || char.x > 700) {
+        x = 0;
+        y += metrics.fontBoundingBoxDescent + 1;
+      } else {
+        x += metrics.width;
       }
     }
+  }
 
-    return {
-      computePositions,
-      charIndexUnder(x, y) {
-        for (let [i, char] of mainChars.entries()) {
-          if (
-            char.x < x &&
-            char.y < y &&
-            x < char.x + metrics.width &&
-            y < char.y + metrics.fontBoundingBoxDescent + 1
-          ) {
-            return i;
-          }
+  return {
+    computePositions,
+    charIndexUnder(x, y) {
+      for (let [i, char] of mainChars.entries()) {
+        if (
+          char.x < x &&
+          char.y < y &&
+          x < char.x + metrics.width &&
+          y < char.y + metrics.fontBoundingBoxDescent + 1
+        ) {
+          return i;
         }
-      },
-      clear() {
-        ctx.clearRect(0, 0, 1000, 600);
-      },
-      render(chars, startIdx = 0, endIdx = chars.length - 1) {
-        for (let i = startIdx; i <= endIdx; i++) {
-          const char = chars[i];
-          const x = "animX" in char ? char.animX : char.x;
-          const y = "animY" in char ? char.animY : char.y;
-          if (char.bgStyle) {
-            ctx.save();
-            ctx.fillStyle = char.bgStyle;
-            ctx.fillRect(x, y, metrics.width, 18);
-            ctx.restore();
-          }
-          ctx.fillStyle = char.fillStyle || "black";
-          ctx.fillText(char.c, x, y);
+      }
+    },
+    clear() {
+      ctx.clearRect(0, 0, 1000, 600);
+    },
+    render(chars, startIdx = 0, endIdx = chars.length - 1) {
+      for (let i = startIdx; i <= endIdx; i++) {
+        const char = chars[i];
+        const x = "animX" in char ? char.animX : char.x;
+        const y = "animY" in char ? char.animY : char.y;
+        if (char.bgStyle) {
+          ctx.save();
+          ctx.fillStyle = char.bgStyle;
+          ctx.fillRect(x, y, metrics.width, 18);
+          ctx.restore();
         }
-      },
-      ctx,
-    };
-  })();
+        ctx.fillStyle = char.fillStyle || "black";
+        ctx.fillText(char.c, x, y);
+      }
+    },
+    ctx,
+  };
+}
+
+let Renderer;
+
+function initialize(
+  canvas,
+  mainText,
+  shadowText,
+  shadowIndexesMap,
+  newIndexesMap
+) {
+  const mainChars = mainText.split("").map(c => ({ c, x: 0, y: 0 }));
+  const shadowChars = shadowText.split("").map(c => ({ c, x: 0, y: 0 }));
+  Renderer = Renderer || createRenderer(canvas, mainChars);
 
   const Animator = (function () {
     const renderFrame = (function () {
@@ -852,6 +873,14 @@ function initialize(canvas, mainText, shadowText, shadowIndexesMap) {
           });
           Renderer.render(createChars);
         }
+
+        for (let indexes of createNewRuns) {
+          indexes.forEach(char => {
+            char.fillStyle = `rgba(0, 0, 0, ${animate(0, 1, t)})`;
+            char.bgStyle = `rgba(102, 187, 106, ${animate(0, 1, t)})`;
+          });
+          Renderer.render(indexes);
+        }
       };
     })();
 
@@ -863,7 +892,10 @@ function initialize(canvas, mainText, shadowText, shadowIndexesMap) {
     requestAnimationFrame(timestamp => {
       (function frame(prevTimestamp, timestamp) {
         if (Math.abs(target - t) > 0.01) {
-          t += ((target - t) / (timestamp - prevTimestamp)) * rate;
+          t +=
+            ((target - t) / (timestamp - prevTimestamp)) *
+            (slowMode ? rate / 4 : rate);
+
           renderFrame(t);
         } else {
           // FIXME: stop animation
@@ -896,11 +928,9 @@ function initialize(canvas, mainText, shadowText, shadowIndexesMap) {
     };
   })();
 
-  const mainChars = mainText.split("").map(c => ({ c, x: 0, y: 0 }));
+  Renderer.clear();
   Renderer.computePositions(mainChars);
   Renderer.render(mainChars);
-
-  const shadowChars = shadowText.split("").map(c => ({ c, x: 0, y: 0 }));
   Renderer.computePositions(shadowChars);
 
   canvas.onmousemove = function (e) {
@@ -924,6 +954,34 @@ function initialize(canvas, mainText, shadowText, shadowIndexesMap) {
   document.onkeydown = document.onkeyup = function (e) {
     Animator.slowMode = e.shiftKey;
   };
+
+  const createNewRuns = (() => {
+    newIndexesMap = newIndexesMap.sort((a, b) =>
+      a.shadowStart > b.shadowStart ? 1 : -1
+    );
+    const result = [];
+    for (let indexes of newIndexesMap) {
+      let createNew = [];
+      for (
+        let index = indexes.shadowStart;
+        index < indexes.shadowEnd;
+        index++
+      ) {
+        createNew.push({
+          ...shadowChars[index],
+        });
+      }
+      if (createNew.length) result.push(createNew);
+    }
+    console.log("newIndexesMap");
+    console.log(newIndexesMap);
+    console.log(
+      result.map(run => {
+        return run.reduce((a, b) => a + b.c, "");
+      })
+    );
+    return result;
+  })();
 
   const createCharRuns = (() => {
     shadowIndexesMap = shadowIndexesMap.sort((a, b) =>
@@ -959,8 +1017,13 @@ function initialize(canvas, mainText, shadowText, shadowIndexesMap) {
       }
     }
 
+    console.log("shadowIndexesMap");
     console.log(shadowIndexesMap);
-    console.log(result);
+    console.log(
+      result.map(run => {
+        return run.reduce((a, b) => a + b.c, "");
+      })
+    );
     return result;
   })();
 }

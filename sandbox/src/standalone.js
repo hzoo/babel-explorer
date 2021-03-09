@@ -102,6 +102,24 @@ export function processOptions(options, customPlugin) {
     plugins.unshift(compileModule(customPlugin));
   }
 
+  // TODO: test
+  // plugins.unshift(function customPlugin2() {
+  //   return {
+  //     name: "mark-original-loc",
+  //     visitor: {
+  //       "Literal|Identifier"(path) {
+  //         if (path.node.value) console.log(path.node, path.node.value);
+  //         if (!path.node.originalLoc) {
+  //           path.node.originalLoc = {
+  //             start: path.node.start,
+  //             end: path.node.end,
+  //           };
+  //         }
+  //       },
+  //     },
+  //   };
+  // });
+
   return {
     ast: true,
     parserOpts: {
@@ -118,5 +136,21 @@ export function processOptions(options, customPlugin) {
     ...options,
     presets,
     plugins,
+    wrapPluginVisitorMethod(pluginAlias, visitorType, callback) {
+      return function (...args) {
+        let path = args[0];
+        if (
+          (!path.node.originalLoc && path.node.type === "MemberExpression") ||
+          path.node.type === "Identifier" ||
+          path.node.type === "StringLiteral"
+        ) {
+          path.node.originalLoc = {
+            start: path.node.start,
+            end: path.node.end,
+          };
+        }
+        callback.call(this, ...args);
+      };
+    },
   };
 }

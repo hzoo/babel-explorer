@@ -95,17 +95,10 @@ let CONFIG = [
 let PLUGIN = `export default function customPlugin(babel) {
   return {
     visitor: {
-      "Identifier|Literal"(path) {
-        if (!path.node.originalLoc)
-          path.node.originalLoc = {
-            start: path.node.start,
-            end: path.node.end,
-          };
-      },
-      Identifier(path) {
+      // Identifier(path) {
         // new method
-        path.mark();
-      },
+        // path.mark();
+      // },
       // Class(path) {
       //   path.mark({ color: "rgba(255,0,255,0.2)" });
       // }
