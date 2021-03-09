@@ -144,10 +144,12 @@ export function processOptions(options, customPlugin) {
           path.node.type === "Identifier" ||
           path.node.type === "StringLiteral"
         ) {
-          path.node.originalLoc = {
-            start: path.node.start,
-            end: path.node.end,
-          };
+          if (!path.node.originalLoc) {
+            path.node.originalLoc = {
+              start: path.node.start,
+              end: path.node.end,
+            };
+          }
         }
         callback.call(this, ...args);
       };
