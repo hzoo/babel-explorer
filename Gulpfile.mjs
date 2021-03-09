@@ -218,30 +218,32 @@ function getFiles(glob, { include, exclude }) {
 function buildBabel(exclude) {
   const base = monorepoRoot;
 
-  return getFiles(defaultSourcesGlob, {
-    exclude: exclude && exclude.map(p => p.src),
-  })
-    .pipe(errorsLogger())
-    .pipe(newer({ dest: base, map: mapSrcToLib }))
-    .pipe(compilationLogger())
-    .pipe(
-      babel({
-        caller: {
-          // We have wrapped packages/babel-core/src/config/files/configuration.js with feature detection
-          supportsDynamicImport: true,
-        },
-      })
-    )
-    .pipe(
-      // gulp-babel always converts the extension to .js, but we want to keep the original one
-      revertPath()
-    )
-    .pipe(
-      // Passing 'file.relative' because newer() above uses a relative
-      // path and this keeps it consistent.
-      rename(file => path.resolve(file.base, mapSrcToLib(file.relative)))
-    )
-    .pipe(gulp.dest(base));
+  return (
+    getFiles(defaultSourcesGlob, {
+      exclude: exclude && exclude.map(p => p.src),
+    })
+      .pipe(errorsLogger())
+      // .pipe(newer({ dest: base, map: mapSrcToLib }))
+      .pipe(compilationLogger())
+      .pipe(
+        babel({
+          caller: {
+            // We have wrapped packages/babel-core/src/config/files/configuration.js with feature detection
+            supportsDynamicImport: true,
+          },
+        })
+      )
+      .pipe(
+        // gulp-babel always converts the extension to .js, but we want to keep the original one
+        revertPath()
+      )
+      .pipe(
+        // Passing 'file.relative' because newer() above uses a relative
+        // path and this keeps it consistent.
+        rename(file => path.resolve(file.base, mapSrcToLib(file.relative)))
+      )
+      .pipe(gulp.dest(base))
+  );
 }
 
 /**
@@ -509,15 +511,15 @@ gulp.task("build-babel", () => buildBabel(/* exclude */ libBundles));
 gulp.task(
   "build",
   gulp.series(
-    gulp.parallel("build-rollup", "build-babel"),
-    gulp.parallel(
-      "generate-standalone",
-      gulp.series(
-        "generate-type-helpers",
-        // rebuild @babel/types since type-helpers may be changed
-        "build-babel"
-      )
-    )
+    gulp.parallel("build-rollup", "build-babel")
+    // gulp.parallel(
+    //   "generate-standalone",
+    //   gulp.series(
+    //     "generate-type-helpers",
+    //     // rebuild @babel/types since type-helpers may be changed
+    //     "build-babel"
+    //   )
+    // )
   )
 );
 
