@@ -139,27 +139,19 @@ export function processOptions(options, customPlugin) {
     presets,
     plugins,
     // for each visitor, but not if code is untouched by babel (in this case that's bad?)
-    // wrapPluginVisitorMethod(pluginAlias, visitorType, callback) {
-    //   return function (...args) {
-    //     let path = args[0];
-    //     if (!path.node.originalLoc) {
-    //       if (
-    //         path.node.type === "MemberExpression" ||
-    //         path.node.type === "Identifier" ||
-    //         path.node.type === "StringLiteral" ||
-    //         path.node.type === "NumericLiteral" ||
-    //         path.node.type === "BinaryExpression" ||
-    //         path.node.type === "ExpressionStatement"
-    //       ) {
-    //         path.node.originalLoc = {
-    //           type: path.node.type,
-    //           start: path.node.start,
-    //           end: path.node.end,
-    //         };
-    //       }
-    //     }
-    //     callback.call(this, ...args);
-    //   };
-    // },
+    wrapPluginVisitorMethod(pluginAlias, visitorType, callback) {
+      return function (...args) {
+        let node = args[0].node;
+        if (!node.originalLoc && node.type === "NumericLiteral") {
+          node.originalLoc = {
+            type: node.type,
+            start: node.start,
+            end: node.end,
+            originalValue: node.extra.raw,
+          };
+        }
+        callback.call(this, ...args);
+      };
+    },
   };
 }
