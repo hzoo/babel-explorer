@@ -483,7 +483,7 @@ function CompiledOutput({
       : "";
 
   useEffect(() => {
-    if (canvas.current && compiled.code && !compiled.error) {
+    if (compiled.code && !compiled.error) {
       initialize(
         canvas.current,
         source,
@@ -702,8 +702,8 @@ export default function App({
         </Section>
       </Root>
       <canvas
-        width="1200"
-        height="2000"
+        width="1000"
+        height="1200"
         ref={canvas}
         style={{ background: "rgba(0, 0, 0, 0.1)" }}
       ></canvas>
@@ -835,18 +835,18 @@ const ToggleRoot = styled.div`
 //   }
 // `;
 
-function createRenderer(canvas, mainChars) {
+function createRenderer(canvas) {
   function setDPI(canvas, dpi) {
-    // Set up CSS size.
-    canvas.style.width = canvas.style.width || canvas.width + "px";
-    canvas.style.height = canvas.style.height || canvas.height + "px";
-
-    // Resize canvas and scale future draws.
-    var scaleFactor = dpi / 96;
-    canvas.width = Math.ceil(canvas.width * scaleFactor);
-    canvas.height = Math.ceil(canvas.height * scaleFactor);
-    var ctx = canvas.getContext("2d");
-    ctx.scale(scaleFactor, scaleFactor);
+    if (!canvas.style.width) {
+      canvas.style.width = canvas.width + "px";
+      canvas.style.height = canvas.height + "px";
+      // Resize canvas and scale future draws..
+      var scaleFactor = dpi / 96;
+      canvas.width = Math.ceil(canvas.width * scaleFactor);
+      canvas.height = Math.ceil(canvas.height * scaleFactor);
+      var ctx = canvas.getContext("2d");
+      ctx.scale(scaleFactor, scaleFactor);
+    }
   }
   setDPI(canvas, 192);
 
@@ -856,12 +856,13 @@ function createRenderer(canvas, mainChars) {
   const metrics = ctx.measureText("m");
   console.log(metrics);
 
+  const maxWidth = 700;
   function computePositions(chars) {
     let { x, y } = chars[0];
     for (let char of chars) {
       char.x = x;
       char.y = y;
-      if (char.c === "\n" || char.x > 700) {
+      if (char.c === "\n" || char.x > maxWidth) {
         x = 0;
         y += metrics.fontBoundingBoxDescent + 1;
       } else {
@@ -915,9 +916,10 @@ function initialize(
   shadowIndexesMap,
   newIndexesMap
 ) {
+  // abcde
   const mainChars = mainText.split("").map(c => ({ c, x: 0, y: 0 }));
   const shadowChars = shadowText.split("").map(c => ({ c, x: 0, y: 0 }));
-  Renderer = Renderer || createRenderer(canvas, mainChars);
+  Renderer = Renderer || createRenderer(canvas);
 
   const Animator = (function () {
     const renderFrame = (function () {
@@ -1010,16 +1012,16 @@ function initialize(
   Renderer.render(mainChars);
   Renderer.computePositions(shadowChars);
 
-  canvas.onmousemove = function (e) {
-    const charIdx = Renderer.charIndexUnder(mainChars, e.offsetX, e.offsetY);
-    const char = mainChars[charIdx];
-    if (!char) {
-      document.body.style.cursor = "auto";
-      return;
-    }
+  // canvas.onmousemove = function (e) {
+  //   const charIdx = Renderer.charIndexUnder(mainChars, e.offsetX, e.offsetY);
+  //   const char = mainChars[charIdx];
+  //   if (!char) {
+  //     document.body.style.cursor = "auto";
+  //     return;
+  //   }
 
-    document.body.style.cursor = "pointer";
-  };
+  //   document.body.style.cursor = "pointer";
+  // };
   canvas.onmousedown = canvas.ontouchstart = function (e) {
     Animator.target = 1;
     Animator.rate = 1;
