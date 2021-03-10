@@ -28,6 +28,7 @@ export default declare((api, opts) => {
           "Identifier|Literal"(path) {
             if (!path.node.originalLoc)
               path.node.originalLoc = {
+                type: path.node.type,
                 start: path.node.start,
                 end: path.node.end,
               };

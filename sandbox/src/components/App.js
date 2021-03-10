@@ -1,7 +1,8 @@
 import React, { useState, useCallback, useEffect, useRef } from "react";
 import * as Babel from "@babel/core";
 import styled, { css } from "styled-components";
-import diff_match_patch from "diff-match-patch";
+// import diff_match_patch from "diff-match-patch";
+import prettier from "prettier";
 
 import AST from "./AST";
 import { Editor } from "./Editor";
@@ -189,18 +190,38 @@ function markNodeFromIndex(cm, type, data) {
   });
 }
 
-function locMap(node, code) {
-  if (node.type === "BinaryExpression" || node.type === "LogicalExpression") {
-    let shadow = code.slice(node.left.end, node.right.start);
+function shadowMapBasedOnType(node, code) {
+  if (!node.type) return;
+
+  // 1_000 to 1000
+  if (
+    node.type === "NumericLiteral" &&
+    node.originalLoc.originalValue.includes("_")
+  ) {
+    let original = node.originalLoc.originalValue;
+    let shadowMap = [];
+    let index = -1;
+    for (let i = 0; i < original.length; i++) {
+      if (original[i] !== "_") {
+        index++;
+        shadowMap.push(node.start + index);
+      } else {
+        shadowMap.push(-1);
+      }
+    }
+    return { shadowMap };
+    // "1  ;" to "1;"
+  } else if (node.type === "ExpressionStatement") {
+    if (code[node.end - 1] !== ";") return;
     return {
-      start: node.left.end + shadow.indexOf(node.operator),
-      end: node.left.end + shadow.indexOf(node.operator) + node.operator.length,
+      mainStart: node.originalLoc.end - 1,
+      mainEnd: node.originalLoc.end,
+      shadowStart: node.end - 1,
+      shadowEnd: node.end,
+      shadowMap: [node.end - 1],
     };
-  } else if (node.type === "StringLiteral") {
-    return {
-      start: node.start + 1,
-      end: node.end - 1,
-    };
+  } else {
+    return;
   }
 }
 
@@ -316,11 +337,17 @@ function CompiledOutput({
       let shadowIndexesMap = [];
       let newIndexesMap = [];
       // retain the AST to use the metadata that has been added to nodes
-      const { code, ast } = Babel.transformFromAstSync(
+      let { code, ast } = Babel.transformFromAstSync(
         sourceAST,
         source,
         processOptions(config, customPlugin)
       );
+      // prettify?
+      // code = prettier.format(code, {
+      //   parser() {
+      //     return Babel.parse(code, processOptions(config, customPlugin));
+      //   },
+      // });
       // reparse the compiled output to get loc data
       let newAST = Babel.parse(code, processOptions(config, customPlugin));
       window.sourceEditor.doc.getAllMarks().forEach(mark => mark.clear());
@@ -375,21 +402,33 @@ function CompiledOutput({
       });
 
       traverseAST(ast, node => {
+        // TODO: merge originalLoc/babelPlugin??
+        // if (node.babelPlugin) {
+        //   node.originalLoc = node.originalLoc || node.babelPlugin[0];
+        // }
         if (node.originalLoc) {
-          if (node.originalLoc.start) {
-            let shadowNode = node.originalLoc.type ? locMap(node, code) : node;
-            if (shadowNode)
-              shadowIndexesMap.push({
+          if (node.originalLoc.start || node.originalLoc.start === 0) {
+            // don't add if same loc?
+            if (
+              node.originalLoc.start !== node.start ||
+              node.originalLoc.end !== node.end
+            ) {
+              let map = {
+                type: node.originalLoc.type,
                 mainStart: node.originalLoc.start,
                 mainEnd: node.originalLoc.end,
                 source: source.slice(
                   node.originalLoc.start,
                   node.originalLoc.end
                 ),
-                shadow: code.slice(shadowNode.start, shadowNode.end),
-                shadowStart: shadowNode.start,
-                shadowEnd: shadowNode.end,
-              });
+                shadow: code.slice(node.start, node.end),
+                shadowStart: node.start,
+                shadowEnd: node.end,
+                ...shadowMapBasedOnType(node, code),
+              };
+
+              shadowIndexesMap.push(map);
+            }
           } else {
             newIndexesMap.push({
               shadow: code.slice(node.start, node.end),
@@ -530,12 +569,23 @@ export default function App({
     setBabelConfig(configs => configs.filter((c, i) => index !== i));
   }, []);
 
+  // can run prettier on source to make diff nicer?
+  const prettify = () => {
+    let pretty = prettier.format(debouncedSource, {
+      parser() {
+        return ast;
+      },
+    });
+    setSource(pretty);
+  };
+
   useEffect(() => {
     try {
       let sourceAST = Babel.parse(
         debouncedSource,
         processOptions({}, debouncedPlugin)
       );
+
       setAST(sourceAST);
       setParserError(null);
     } catch (e) {
@@ -577,11 +627,21 @@ export default function App({
           )}
           <Wrapper>
             <Column>
-              <div style={{ textAlign: "center" }}>Source</div>
+              <div style={{ textAlign: "center" }}>
+                Source{" "}
+                <button
+                  style={{ background: "#f5da55" }}
+                  onClick={() => prettify()}
+                >
+                  Prettify
+                </button>
+              </div>
               <Code
                 style={{ overflowY: "auto" }}
                 value={source}
-                onChange={val => setSource(val)}
+                onChange={val => {
+                  setSource(val);
+                }}
                 docName="source.js"
                 getEditor={editor => {
                   window.sourceEditor = editor;
@@ -795,8 +855,8 @@ function createRenderer(canvas, mainChars) {
 
   return {
     computePositions,
-    charIndexUnder(x, y) {
-      for (let [i, char] of mainChars.entries()) {
+    charIndexUnder(chars, x, y) {
+      for (let [i, char] of chars.entries()) {
         if (
           char.x < x &&
           char.y < y &&
@@ -934,7 +994,7 @@ function initialize(
   Renderer.computePositions(shadowChars);
 
   canvas.onmousemove = function (e) {
-    const charIdx = Renderer.charIndexUnder(e.offsetX, e.offsetY);
+    const charIdx = Renderer.charIndexUnder(mainChars, e.offsetX, e.offsetY);
     const char = mainChars[charIdx];
     if (!char) {
       document.body.style.cursor = "auto";
@@ -989,7 +1049,6 @@ function initialize(
     );
     const result = [];
     for (const [i, value] of shadowIndexesMap.entries()) {
-      let { mainEnd: end, mainStart: index } = value;
       let createChars = [];
       for (
         let j = i === 0 ? 0 : shadowIndexesMap[i - 1].shadowEnd;
@@ -1009,12 +1068,34 @@ function initialize(
         if (createChars.length) result.push(createChars);
       }
 
-      // mainChars[6].shadowIndex = 4;
-      while (index < end) {
-        mainChars[index].shadowIndex =
-          value.shadowStart + (index - value.mainStart);
-        index++;
+      // set shadowIndexes
+      let { mainEnd, mainStart, source, shadow, shadowMap } = value;
+
+      // if moving same number of characters
+      if (source.length === shadow.length) {
+        let inc = 0;
+        while (mainStart + inc < mainEnd) {
+          mainChars[mainStart + inc].shadowIndex = value.shadowStart + inc;
+          inc++;
+        }
+      } else {
+        let inc = 0;
+        while (mainStart + inc < mainEnd) {
+          if (shadowMap[inc] !== -1) {
+            mainChars[mainStart + inc].shadowIndex = shadowMap[inc];
+          }
+          inc++;
+        }
       }
+    }
+
+    // no diff
+    if (shadowIndexesMap.length === 0) {
+      let tmp = [];
+      for (let j = 0; j < shadowChars.length; j++) {
+        tmp.push({ ...shadowChars[j] });
+      }
+      result.push(tmp);
     }
 
     console.log("shadowIndexesMap");

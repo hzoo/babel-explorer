@@ -103,22 +103,24 @@ export function processOptions(options, customPlugin) {
   }
 
   // TODO: test
-  // plugins.unshift(function customPlugin2() {
-  //   return {
-  //     name: "mark-original-loc",
-  //     visitor: {
-  //       "Literal|Identifier"(path) {
-  //         if (path.node.value) console.log(path.node, path.node.value);
-  //         if (!path.node.originalLoc) {
-  //           path.node.originalLoc = {
-  //             start: path.node.start,
-  //             end: path.node.end,
-  //           };
-  //         }
-  //       },
-  //     },
-  //   };
-  // });
+  plugins.unshift(function customPlugin2() {
+    return {
+      name: "mark-original-loc",
+      visitor: {
+        "ExpressionStatement|BinaryExpression|MemberExpression|Literal|Identifier"(
+          path
+        ) {
+          if (!path.node.originalLoc) {
+            path.node.originalLoc = {
+              type: path.node.type,
+              start: path.node.start,
+              end: path.node.end,
+            };
+          }
+        },
+      },
+    };
+  });
 
   return {
     ast: true,
@@ -136,23 +138,28 @@ export function processOptions(options, customPlugin) {
     ...options,
     presets,
     plugins,
-    wrapPluginVisitorMethod(pluginAlias, visitorType, callback) {
-      return function (...args) {
-        let path = args[0];
-        if (
-          (!path.node.originalLoc && path.node.type === "MemberExpression") ||
-          path.node.type === "Identifier" ||
-          path.node.type === "StringLiteral"
-        ) {
-          if (!path.node.originalLoc) {
-            path.node.originalLoc = {
-              start: path.node.start,
-              end: path.node.end,
-            };
-          }
-        }
-        callback.call(this, ...args);
-      };
-    },
+    // for each visitor, but not if code is untouched by babel (in this case that's bad?)
+    // wrapPluginVisitorMethod(pluginAlias, visitorType, callback) {
+    //   return function (...args) {
+    //     let path = args[0];
+    //     if (!path.node.originalLoc) {
+    //       if (
+    //         path.node.type === "MemberExpression" ||
+    //         path.node.type === "Identifier" ||
+    //         path.node.type === "StringLiteral" ||
+    //         path.node.type === "NumericLiteral" ||
+    //         path.node.type === "BinaryExpression" ||
+    //         path.node.type === "ExpressionStatement"
+    //       ) {
+    //         path.node.originalLoc = {
+    //           type: path.node.type,
+    //           start: path.node.start,
+    //           end: path.node.end,
+    //         };
+    //       }
+    //     }
+    //     callback.call(this, ...args);
+    //   };
+    // },
   };
 }
