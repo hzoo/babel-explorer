@@ -190,7 +190,7 @@ function markNodeFromIndex(cm, type, data) {
   });
 }
 
-function shadowMapBasedOnType(node, code) {
+function shadowMapBasedOnType(node, source, code) {
   if (!node.type) return;
 
   // 1_000 to 1000
@@ -212,13 +212,29 @@ function shadowMapBasedOnType(node, code) {
     return { shadowMap };
     // "1  ;" to "1;"
   } else if (node.type === "ExpressionStatement") {
-    if (code[node.end - 1] !== ";") return;
+    if (code[node.end - 1] !== ";" || code[source.end - 1] !== ";") return -1;
     return {
       mainStart: node.originalLoc.end - 1,
       mainEnd: node.originalLoc.end,
       shadowStart: node.end - 1,
       shadowEnd: node.end,
       shadowMap: [node.end - 1],
+    };
+  } else if (node.originalLoc.type === "JSXIdentifier") {
+    let newStart = node.start + 1;
+    let newEnd = node.end - 1;
+    return {
+      shadowStart: newStart,
+      shadowEnd: newEnd,
+      shadowMap: [...Array(newEnd - newStart).keys()].map(a => a + newStart),
+    };
+  } else if (node.originalLoc.type === "JSXText") {
+    let newStart = node.start + 1;
+    let newEnd = node.end - 1;
+    return {
+      shadowStart: newStart,
+      shadowEnd: newEnd,
+      shadowMap: [...Array(newEnd - newStart).keys()].map(a => a + newStart),
     };
   } else {
     return;
@@ -413,21 +429,22 @@ function CompiledOutput({
               node.originalLoc.start !== node.start ||
               node.originalLoc.end !== node.end
             ) {
-              let map = {
-                type: node.originalLoc.type,
-                mainStart: node.originalLoc.start,
-                mainEnd: node.originalLoc.end,
-                source: source.slice(
-                  node.originalLoc.start,
-                  node.originalLoc.end
-                ),
-                shadow: code.slice(node.start, node.end),
-                shadowStart: node.start,
-                shadowEnd: node.end,
-                ...shadowMapBasedOnType(node, code),
-              };
-
-              shadowIndexesMap.push(map);
+              let map = shadowMapBasedOnType(node, source, code);
+              if (map !== -1) {
+                shadowIndexesMap.push({
+                  type: node.originalLoc.type,
+                  mainStart: node.originalLoc.start,
+                  mainEnd: node.originalLoc.end,
+                  source: source.slice(
+                    node.originalLoc.start,
+                    node.originalLoc.end
+                  ),
+                  shadow: code.slice(node.start, node.end),
+                  shadowStart: node.start,
+                  shadowEnd: node.end,
+                  ...map,
+                });
+              }
             }
           } else {
             newIndexesMap.push({

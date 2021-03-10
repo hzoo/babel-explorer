@@ -25,7 +25,7 @@ export default declare((api, opts) => {
         const { node, parent, scope } = path;
         if (!isBlockScoped(node)) return;
         path.traverse({
-          "Identifier|Literal"(path) {
+          Identifier(path) {
             if (!path.node.originalLoc)
               path.node.originalLoc = {
                 type: path.node.type,

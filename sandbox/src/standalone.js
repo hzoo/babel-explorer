@@ -142,13 +142,14 @@ export function processOptions(options, customPlugin) {
     wrapPluginVisitorMethod(pluginAlias, visitorType, callback) {
       return function (...args) {
         let node = args[0].node;
-        if (!node.originalLoc && node.type === "NumericLiteral") {
-          node.originalLoc = {
-            type: node.type,
-            start: node.start,
-            end: node.end,
-            originalValue: node.extra.raw,
-          };
+        if (node.type === "NumericLiteral") {
+          if (!node.originalLoc)
+            node.originalLoc = {
+              type: node.type,
+              start: node.start,
+              end: node.end,
+              originalValue: node.extra.raw,
+            };
         }
         callback.call(this, ...args);
       };

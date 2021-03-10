@@ -3,41 +3,41 @@ import ReactDOM from "react-dom";
 import App from "./components/App";
 
 let GIST = false;
-// let SOURCE = `
-// const profile = (
-//   <section
-//     css={{
-//       background: colors.dark,
-//       color: colors.white,
-//       paddingTop: 45,
-//       paddingBottom: 25,
-//     }}
-//   >
-//     <Container>
-//       <Flex
-//         valign="center"
-//         halign="center"
-//         css={{
-//           flexWrap: "wrap",
-//           justifyContent: "center",
-//         }}
-//       >
-//         <CtaItem>
-//           <ButtonLink to="/docs/getting-started.html" type="primary">
-//             Get Started
-//           </ButtonLink>
-//         </CtaItem>
-//         <CtaItem>
-//           <ButtonLink to="/tutorial/tutorial.html" type="secondary">
-//             Take the Tutorial
-//           </ButtonLink>
-//         </CtaItem>
-//       </Flex>
-//     </Container>
-//   </section>
-// );
-// `.trim();
-let SOURCE = `1_000`;
+let SOURCE = `
+const profile = (
+  <section
+    css={{
+      background: colors.dark,
+      color: colors.white,
+      paddingTop: 45,
+      paddingBottom: 25,
+    }}
+  >
+    <Container>
+      <Flex
+        valign="center"
+        halign="center"
+        css={{
+          flexWrap: "wrap",
+          justifyContent: "center",
+        }}
+      >
+        <CtaItem>
+          <ButtonLink to="/docs/getting-started.html" type="primary">
+            Get Started
+          </ButtonLink>
+        </CtaItem>
+        <CtaItem>
+          <ButtonLink to="/tutorial/tutorial.html" type="secondary">
+            Take the Tutorial
+          </ButtonLink>
+        </CtaItem>
+      </Flex>
+    </Container>
+  </section>
+);
+`.trim();
+// let SOURCE = `const a  = 1;`;
 let CONFIG = [
   {
     presets: [
