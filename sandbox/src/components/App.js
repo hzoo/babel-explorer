@@ -885,7 +885,7 @@ function createRenderer(canvas, mainChars) {
       }
     },
     clear() {
-      ctx.clearRect(0, 0, 1000, 600);
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
     },
     render(chars, startIdx = 0, endIdx = chars.length - 1) {
       for (let i = startIdx; i <= endIdx; i++) {
