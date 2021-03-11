@@ -231,7 +231,7 @@ function shadowMapBasedOnType(node, source, code) {
       shadowMap: [
         ...Array(node.originalLoc.end - node.originalLoc.start).keys(),
       ].map(main => ({
-        main,
+        main: main + node.originalLoc.start,
         shadow: main + newStart,
       })),
     };
@@ -244,7 +244,7 @@ function shadowMapBasedOnType(node, source, code) {
       shadowMap: [
         ...Array(node.originalLoc.end - node.originalLoc.start).keys(),
       ].map(main => ({
-        main,
+        main: main + node.originalLoc.start,
         shadow: main + newStart,
       })),
     };
@@ -281,22 +281,22 @@ function shadowMapBasedOnType(node, source, code) {
       { main: node.originalLoc.end - 1, shadow: node.end - 1 },
     ];
     node.originalLoc.properties.forEach((element, i) => {
+      shadowMap.push({
+        main:
+          node.originalLoc.properties[i].key.end +
+          source
+            .slice(
+              node.originalLoc.properties[i].key.end,
+              node.originalLoc.properties[i].value.start
+            )
+            .indexOf(":"),
+        shadow:
+          node.properties[i].key.end +
+          code
+            .slice(node.properties[i].key.end, node.properties[i].value.start)
+            .indexOf(":"),
+      });
       if (i < node.originalLoc.properties.length - 1) {
-        shadowMap.push({
-          main:
-            node.originalLoc.properties[i].key.end +
-            source
-              .slice(
-                node.originalLoc.properties[i].key.end,
-                node.originalLoc.properties[i].value.start
-              )
-              .indexOf(":"),
-          shadow:
-            node.properties[i].key.end +
-            code
-              .slice(node.properties[i].key.end, node.properties[i].value.start)
-              .indexOf(":"),
-        });
         shadowMap.push({
           main:
             node.originalLoc.properties[i].value.end +
@@ -320,6 +320,23 @@ function shadowMapBasedOnType(node, source, code) {
     return {
       shadowMap,
     };
+  } else if (node.originalLoc.type === "VariableDeclaration") {
+    // node.originalLoc.kind.split("").map((main, i) => ({
+    //   main: node.originalLoc.start + i,
+    //   // shadow: node.start + i,
+    // }));
+    if (
+      source[node.originalLoc.end - 1] === ";" &&
+      code[node.end - 1] === ";"
+    ) {
+      return {
+        shadowStart: node.end - 1,
+        shadowEnd: node.end,
+        shadowMap: [{ main: node.originalLoc.end - 1, shadow: node.end - 1 }],
+      };
+    } else {
+      return -1;
+    }
   } else {
     return;
   }
