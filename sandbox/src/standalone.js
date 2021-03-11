@@ -107,14 +107,46 @@ export function processOptions(options, customPlugin) {
     return {
       name: "mark-original-loc",
       visitor: {
-        "ExpressionStatement|BinaryExpression|MemberExpression|Literal|Identifier"(
-          path
-        ) {
+        "ExpressionStatement|BinaryExpression|Literal|Identifier"(path) {
           if (!path.node.originalLoc) {
             path.node.originalLoc = {
               type: path.node.type,
               start: path.node.start,
               end: path.node.end,
+            };
+          }
+        },
+        ArrayExpression(path) {
+          if (!path.node.originalLoc) {
+            path.node.originalLoc = {
+              type: path.node.type,
+              start: path.node.start,
+              end: path.node.end,
+              elements: path.node.elements.map(e => ({
+                start: e.start,
+                end: e.end,
+              })),
+            };
+          }
+        },
+        ObjectExpression(path) {
+          if (!path.node.originalLoc) {
+            path.node.originalLoc = {
+              type: path.node.type,
+              start: path.node.start,
+              end: path.node.end,
+              properties: path.node.properties.map(p => {
+                return {
+                  key: {
+                    start: p.key.start,
+                    end: p.key.end,
+                  },
+                  value: {
+                    start: p.value.start,
+                    end: p.value.end,
+                  },
+                };
+              }),
             };
           }
         },
@@ -124,6 +156,8 @@ export function processOptions(options, customPlugin) {
 
   return {
     ast: true,
+    // sourceMaps: "both",
+    filename: "test.js",
     parserOpts: {
       plugins: [
         "typescript",
@@ -148,7 +182,7 @@ export function processOptions(options, customPlugin) {
               type: node.type,
               start: node.start,
               end: node.end,
-              originalValue: node.extra.raw,
+              originalValue: node?.extra?.raw,
             };
         }
         callback.call(this, ...args);

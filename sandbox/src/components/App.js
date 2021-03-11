@@ -204,21 +204,23 @@ function shadowMapBasedOnType(node, source, code) {
     for (let i = 0; i < original.length; i++) {
       if (original[i] !== "_") {
         index++;
-        shadowMap.push(node.start + index);
-      } else {
-        shadowMap.push(-1);
+        shadowMap.push({
+          main: node.originalLoc.start + i,
+          shadow: node.start + index,
+        });
       }
     }
     return { shadowMap };
     // "1  ;" to "1;"
   } else if (node.type === "ExpressionStatement") {
-    if (code[node.end - 1] !== ";" || code[source.end - 1] !== ";") return -1;
+    if (source[node.originalLoc.end - 1] !== ";" || code[node.end - 1] !== ";")
+      return -1;
     return {
       mainStart: node.originalLoc.end - 1,
       mainEnd: node.originalLoc.end,
       shadowStart: node.end - 1,
       shadowEnd: node.end,
-      shadowMap: [node.end - 1],
+      shadowMap: [{ main: node.originalLoc.end - 1, shadow: node.end - 1 }],
     };
   } else if (node.originalLoc.type === "JSXIdentifier") {
     let newStart = node.start + 1;
@@ -226,7 +228,12 @@ function shadowMapBasedOnType(node, source, code) {
     return {
       shadowStart: newStart,
       shadowEnd: newEnd,
-      shadowMap: [...Array(newEnd - newStart).keys()].map(a => a + newStart),
+      shadowMap: [
+        ...Array(node.originalLoc.end - node.originalLoc.start).keys(),
+      ].map(main => ({
+        main,
+        shadow: main + newStart,
+      })),
     };
   } else if (node.originalLoc.type === "JSXText") {
     let newStart = node.start + 1;
@@ -234,7 +241,84 @@ function shadowMapBasedOnType(node, source, code) {
     return {
       shadowStart: newStart,
       shadowEnd: newEnd,
-      shadowMap: [...Array(newEnd - newStart).keys()].map(a => a + newStart),
+      shadowMap: [
+        ...Array(node.originalLoc.end - node.originalLoc.start).keys(),
+      ].map(main => ({
+        main,
+        shadow: main + newStart,
+      })),
+    };
+  } else if (node.originalLoc.type === "ArrayExpression") {
+    let shadowMap = [
+      { main: node.originalLoc.start, shadow: node.start },
+      { main: node.originalLoc.end - 1, shadow: node.end - 1 },
+    ];
+    node.originalLoc.elements.forEach((element, i) => {
+      if (i < node.originalLoc.elements.length - 1) {
+        shadowMap.push({
+          main:
+            node.originalLoc.elements[i].end +
+            source
+              .slice(
+                node.originalLoc.elements[i].end,
+                node.originalLoc.elements[i + 1].start
+              )
+              .indexOf(","),
+          shadow:
+            node.elements[i].end +
+            code
+              .slice(node.elements[i].end, node.elements[i + 1].start)
+              .indexOf(","),
+        });
+      }
+    });
+    return {
+      shadowMap,
+    };
+  } else if (node.originalLoc.type === "ObjectExpression") {
+    let shadowMap = [
+      { main: node.originalLoc.start, shadow: node.start },
+      { main: node.originalLoc.end - 1, shadow: node.end - 1 },
+    ];
+    node.originalLoc.properties.forEach((element, i) => {
+      if (i < node.originalLoc.properties.length - 1) {
+        shadowMap.push({
+          main:
+            node.originalLoc.properties[i].key.end +
+            source
+              .slice(
+                node.originalLoc.properties[i].key.end,
+                node.originalLoc.properties[i].value.start
+              )
+              .indexOf(":"),
+          shadow:
+            node.properties[i].key.end +
+            code
+              .slice(node.properties[i].key.end, node.properties[i].value.start)
+              .indexOf(":"),
+        });
+        shadowMap.push({
+          main:
+            node.originalLoc.properties[i].value.end +
+            source
+              .slice(
+                node.originalLoc.properties[i].value.end,
+                node.originalLoc.properties[i + 1].key.start
+              )
+              .indexOf(","),
+          shadow:
+            node.properties[i].value.end +
+            code
+              .slice(
+                node.properties[i].value.end,
+                node.properties[i + 1].key.start
+              )
+              .indexOf(","),
+        });
+      }
+    });
+    return {
+      shadowMap,
     };
   } else {
     return;
@@ -353,7 +437,7 @@ function CompiledOutput({
       let shadowIndexesMap = [];
       let newIndexesMap = [];
       // retain the AST to use the metadata that has been added to nodes
-      let { code, ast } = Babel.transformFromAstSync(
+      let { code, ast, map } = Babel.transformFromAstSync(
         sourceAST,
         source,
         processOptions(config, customPlugin)
@@ -422,39 +506,39 @@ function CompiledOutput({
         // if (node.babelPlugin) {
         //   node.originalLoc = node.originalLoc || node.babelPlugin[0];
         // }
-        if (node.originalLoc) {
-          if (node.originalLoc.start || node.originalLoc.start === 0) {
-            // don't add if same loc?
-            if (
-              node.originalLoc.start !== node.start ||
-              node.originalLoc.end !== node.end
-            ) {
-              let map = shadowMapBasedOnType(node, source, code);
-              if (map !== -1) {
-                shadowIndexesMap.push({
-                  type: node.originalLoc.type,
-                  mainStart: node.originalLoc.start,
-                  mainEnd: node.originalLoc.end,
-                  source: source.slice(
-                    node.originalLoc.start,
-                    node.originalLoc.end
-                  ),
-                  shadow: code.slice(node.start, node.end),
-                  shadowStart: node.start,
-                  shadowEnd: node.end,
-                  ...map,
-                });
-              }
-            }
-          } else {
-            newIndexesMap.push({
+        if (!node.originalLoc) return;
+
+        // don't add if same loc?
+        if (node.originalLoc.start === undefined) {
+          newIndexesMap.push({
+            shadow: code.slice(node.start, node.end),
+            shadowStart: node.start,
+            shadowEnd: node.end,
+          });
+        } else {
+          let map = shadowMapBasedOnType(node, source, code);
+          // if (
+          //   node.originalLoc.start === node.start ||
+          //   node.originalLoc.end === node.end
+          // )
+          if (map !== -1) {
+            shadowIndexesMap.push({
+              type: node.originalLoc.type,
+              mainStart: node.originalLoc.start,
+              mainEnd: node.originalLoc.end,
+              source: source.slice(
+                node.originalLoc.start,
+                node.originalLoc.end
+              ),
               shadow: code.slice(node.start, node.end),
               shadowStart: node.start,
               shadowEnd: node.end,
+              ...map,
             });
           }
-          return;
         }
+
+        return;
       });
 
       gzipSize(code).then(s => setGzip(s));
@@ -483,7 +567,7 @@ function CompiledOutput({
       : "";
 
   useEffect(() => {
-    if (compiled.code && !compiled.error) {
+    if (source && compiled.code && !compiled.error) {
       initialize(
         canvas.current,
         source,
@@ -932,19 +1016,19 @@ function initialize(
       }
 
       return function frame(t) {
+        // remove for art*
+        Renderer.clear();
+
         for (let char of mainChars) {
           if ("shadowIndex" in char) {
             const shadowChar = shadowChars[char.shadowIndex];
             char.animX = animate(char.x, shadowChar.x, t);
             char.animY = animate(char.y, shadowChar.y, t);
-            char.bgStyle = `rgba(255, 192, 203, ${animate(0, 1, t)})`;
+            char.bgStyle = `rgba(255, 192, 203, ${animate(0.5, 1, t)})`;
           } else {
             char.fillStyle = `rgba(0, 0, 0, ${animate(1, 0, t)})`;
           }
         }
-
-        Renderer.clear();
-        Renderer.render(mainChars);
 
         for (let createChars of createCharRuns) {
           createChars.forEach(char => {
@@ -956,10 +1040,12 @@ function initialize(
         for (let indexes of createNewRuns) {
           indexes.forEach(char => {
             char.fillStyle = `rgba(0, 0, 0, ${animate(0, 1, t)})`;
-            char.bgStyle = `rgba(102, 187, 106, ${animate(0, 1, t)})`;
+            char.bgStyle = `rgba(102, 187, 106, ${animate(0, 0.2, t)})`;
           });
           Renderer.render(indexes);
         }
+
+        Renderer.render(mainChars);
       };
     })();
 
@@ -1098,13 +1184,9 @@ function initialize(
           inc++;
         }
       } else {
-        let inc = 0;
-        while (mainStart + inc < mainEnd) {
-          if (shadowMap[inc] !== -1) {
-            mainChars[mainStart + inc].shadowIndex = shadowMap[inc];
-          }
-          inc++;
-        }
+        shadowMap.forEach(({ main, shadow }) => {
+          mainChars[main].shadowIndex = shadow;
+        });
       }
     }
 
