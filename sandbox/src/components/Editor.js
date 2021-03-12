@@ -47,6 +47,46 @@ export function Editor({
       style={style}
       value={options.value}
       editorDidMount={editor => {
+        // handle whitespace
+        // https://github.com/coderaiser/cm-show-invisibles
+        editor.addOverlay({
+          name: "invisibles",
+          token: function nextToken(stream) {
+            let spaces = 0;
+            let peek = stream.peek() === " ";
+
+            if (peek) {
+              while (peek && spaces < 8) {
+                ++spaces;
+
+                stream.next();
+                peek = stream.peek() === " ";
+              }
+
+              let ret = "whitespace whitespace-" + spaces;
+
+              /*
+               * styles should be different
+               * could not be two same styles
+               * beside because of this check in runmode
+               * function in `codemirror.js`:
+               *
+               * 6624: if (!flattenSpans || curStyle != style) {}
+               */
+              if (spaces === 8) ret += " whitespace-rand-" + Count++;
+
+              return ret;
+            }
+
+            while (!stream.eol() && !peek) {
+              stream.next();
+
+              peek = stream.peek() === " ";
+            }
+
+            return "cm-eol";
+          },
+        });
         if (getEditor) getEditor(editor);
       }}
       onCursor={(editor, data) => {

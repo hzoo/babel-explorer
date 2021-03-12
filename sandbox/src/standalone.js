@@ -104,12 +104,14 @@ export function processOptions(options, customPlugin) {
 
   const handledVisitors = [
     "VariableDeclaration",
+    "BlockStatement",
     "ObjectExpression",
     "ArrayExpression",
     "ExpressionStatement",
     "BinaryExpression",
     "Literal",
     "Identifier",
+    "MemberExpression",
   ].join("|");
 
   // TODO: test

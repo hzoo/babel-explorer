@@ -146,28 +146,6 @@ function getCSSForTransform(name) {
   });
 }
 
-// TODO: what to do with this old fn that uses node loc vs. start/end range?
-// function fixLoc(loc) {
-//   if (loc.ch) return loc;
-
-//   return {
-//     line: loc.line - 1,
-//     ch: loc.column,
-//   };
-// }
-// function markNodes(cm, nodes) {
-//   for (let node of nodes) {
-//     // generate highlight color based on plugin name
-//     // figure out something better for custom plugins
-//     // maybe need to be able to edit it via ui/save settings
-//     // can tweak colors too
-//     // maybe reuse algo (since deterministic) in the AST node as well and do something with it?
-//     cm.doc.markText(fixLoc(node.loc.start), fixLoc(node.loc.end), {
-//       css: `background: ${getCSSForTransform(node.babelPlugin[0]?.name)}`,
-//     });
-//   }
-// }
-
 function markRanges(cm, type, ranges, rangeIndexes) {
   cm.doc.getAllMarks().forEach(mark => mark.clear());
   if (!rangeIndexes) {
@@ -275,23 +253,45 @@ function shadowMapBasedOnType(node, source, code) {
     ];
     node.elements.forEach((element, i) => {
       if (i < node?._originalLoc?.elements.length - 1) {
+        if (node?._originalLoc?.elements[i + 1] === null) {
+          // TODO: sparse arrays
+          throw new Error("TODO: doesn't handle sparse arrays [1,,2] yet");
+        }
         shadowMap.push({
           main:
             node?._originalLoc?.elements[i].end +
             source
               .slice(
                 node?._originalLoc?.elements[i].end,
-                node?._originalLoc?.elements[i + 1].start
+                node?._originalLoc?.elements[i + 1]?.start
               )
               .indexOf(","),
           shadow:
             node.elements[i].end +
             code
-              .slice(node.elements[i].end, node.elements[i + 1].start)
+              .slice(node.elements[i].end, node.elements[i + 1]?.start)
               .indexOf(","),
         });
       }
     });
+    // TODO: account for trailing comma? bug with .extra not reset?
+    // if (
+    //   node?.extra?.trailingComma ||
+    //   node?._originalLoc?.extra?.trailingComma
+    // ) {
+    //   shadowMap.push({
+    //     main: node?._originalLoc?.extra?.trailingComma,
+    //     shadow: node?.extra?.trailingComma,
+    //   });
+    // }
+    return {
+      shadowMap,
+    };
+  } else if (node.type === "BlockStatement") {
+    let shadowMap = [
+      { main: node?._originalLoc?.start, shadow: node.start },
+      { main: node?._originalLoc?.end - 1, shadow: node.end - 1 },
+    ];
     return {
       shadowMap,
     };
@@ -422,15 +422,65 @@ function shadowMapBasedOnType(node, source, code) {
       shadowMap,
       transformMap,
     };
+  }
+  // node.type === "UnaryExpression" ||
+  else if (node.type === "BinaryExpression") {
+    return {
+      shadowMap: [...Array(node.operator.length)].map((_, i) => {
+        return {
+          main:
+            node?._originalLoc?.type === "BinaryExpression" &&
+            node._originalLoc.left.end +
+              source
+                .slice(
+                  node._originalLoc.left.end,
+                  node._originalLoc.right.start
+                )
+                .indexOf(node._originalLoc.operator) +
+              i,
+          shadow:
+            node.left.end +
+            code.slice(node.left.end, node.right.start).indexOf(node.operator) +
+            i,
+        };
+      }),
+    };
+    // a.b
+    // TODO: a[b]
+  } else if (node.type === "MemberExpression") {
+    return {
+      shadowMap: [
+        {
+          main:
+            node?._originalLoc?.type === "MemberExpression" &&
+            node._originalLoc.object.end +
+              source
+                .slice(
+                  node._originalLoc.object.end,
+                  node._originalLoc.property.start
+                )
+                .indexOf("."),
+          shadow:
+            node.object.end +
+            code.slice(node.object.end, node.property.start).indexOf("."),
+        },
+      ],
+    };
   } else if (
-    node.type === "Identifier" ||
-    node.type === "StringLiteral" ||
-    node.type === "BooleanLiteral" ||
-    node.type === "NumericLiteral"
+    // same type
+    // preventing something like unhandled node (ObjectPattern -> Identifier)
+    node.type === node._originalLoc.type &&
+    (node.type === "Identifier" ||
+      node.type === "StringLiteral" ||
+      node.type === "BooleanLiteral" ||
+      node.type === "NullLiteral" ||
+      node.type === "NumericLiteral")
   ) {
     return;
   } else {
-    console.error("unsupported", node._originalLoc.type);
+    console.error(
+      `unsupported! original: ${node._originalLoc.type}, type: ${node.type}`
+    );
     return -1;
   }
 }
@@ -877,7 +927,7 @@ export default function App({
       </Root>
       <canvas
         width="1000"
-        height="1200"
+        height="600"
         ref={canvas}
         style={{ background: "rgba(0, 0, 0, 0.1)" }}
       ></canvas>
@@ -1010,19 +1060,20 @@ const ToggleRoot = styled.div`
 // `;
 
 function createRenderer(canvas) {
-  function setDPI(canvas, dpi) {
+  function setDPR(canvas, dpr = window.devicePixelRatio || 1) {
     if (!canvas.style.width) {
+      // Get the device pixel ratio, falling back to 1.
       canvas.style.width = canvas.width + "px";
       canvas.style.height = canvas.height + "px";
       // Resize canvas and scale future draws..
-      var scaleFactor = dpi / 96;
-      canvas.width = Math.ceil(canvas.width * scaleFactor);
-      canvas.height = Math.ceil(canvas.height * scaleFactor);
+      // var scaleFactor = dpi / 96;
+      canvas.width = Math.ceil(canvas.width * dpr);
+      canvas.height = Math.ceil(canvas.height * dpr);
       var ctx = canvas.getContext("2d");
-      ctx.scale(scaleFactor, scaleFactor);
+      ctx.scale(dpr, dpr);
     }
   }
-  setDPI(canvas, 192);
+  setDPR(canvas, 4);
 
   const ctx = canvas.getContext("2d");
   ctx.textBaseline = "top";
@@ -1125,6 +1176,8 @@ function initialize(canvas, mainText, shadowText, shadowIndexesMap) {
                 extraShadows.push({
                   animX: animate(char.x, extraIndex.x, t),
                   animY: animate(char.y, extraIndex.y, t),
+                  bgStyle:
+                    char.color && `rgba(238, 192, 255, ${animate(0.3, 1, t)})`,
                   ...extraIndex,
                 });
               });
@@ -1260,6 +1313,16 @@ function initialize(canvas, mainText, shadowText, shadowIndexesMap) {
     return result;
   })();
 
+  function setShadows(mainChars, mainIndex, shadowIndex) {
+    if (mainChars[mainIndex].shadowIndex === undefined) {
+      mainChars[mainIndex].shadowIndex = shadowIndex;
+    } else if (!mainChars[mainIndex].shadows) {
+      mainChars[mainIndex].shadows = [shadowIndex];
+    } else {
+      mainChars[mainIndex].shadows.push(shadowIndex);
+    }
+  }
+
   const createCharRuns = (() => {
     // transformed/same chars
     shadowIndexesMap = shadowIndexesMap.filter(a => a.source);
@@ -1267,15 +1330,16 @@ function initialize(canvas, mainText, shadowText, shadowIndexesMap) {
     // filter down from output
     let result = [...shadowChars];
     for (const [i, value] of shadowIndexesMap.entries()) {
-      let { mainEnd, mainStart, shadowMap, transformMap } = value;
+      let { mainEnd, mainStart, shadowStart, shadowMap, transformMap } = value;
 
       if (shadowMap || transformMap) {
         (shadowMap || []).forEach(({ main, shadow }) => {
           if (mainChars[main]) {
-            mainChars[main].shadowIndex = shadow;
+            // mainChars[main].shadowIndex = shadow;
+            setShadows(mainChars, main, shadow);
             result[shadow] = undefined;
           } else {
-            console.error(value);
+            console.error(`mainChars[main] undefined: ${value}`);
           }
         });
         (transformMap || []).forEach(({ main, shadow, cMain, cShadow }) => {
@@ -1285,13 +1349,7 @@ function initialize(canvas, mainText, shadowText, shadowIndexesMap) {
       } else {
         let inc = 0;
         while (mainStart + inc < mainEnd) {
-          if (mainChars[mainStart + inc].shadowIndex === undefined) {
-            mainChars[mainStart + inc].shadowIndex = value.shadowStart + inc;
-          } else if (!mainChars[mainStart + inc].shadows) {
-            mainChars[mainStart + inc].shadows = [value.shadowStart + inc];
-          } else {
-            mainChars[mainStart + inc].shadows.push(value.shadowStart + inc);
-          }
+          setShadows(mainChars, mainStart + inc, shadowStart + inc);
           result[value.shadowStart + inc] = undefined;
           inc++;
         }

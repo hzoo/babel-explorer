@@ -38,8 +38,9 @@ const profile = (
 );
 `.trim();
 // SOURCE = `<b c={1}></b>;`;
-// SOURCE = `forEach(({ shadow }) => {});`.trim();
-// SOURCE = `[1,2,3]`.trim();
+SOURCE = `forEach(({ shadow }) => {});`.trim();
+SOURCE = `a
+!== b;`.trim();
 // SOURCE = `let a = {"background":{"persistent":true}, "a": [1,2,3, {a: 4}]};`;
 let CONFIG = [
   {
