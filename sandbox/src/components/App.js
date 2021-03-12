@@ -196,7 +196,7 @@ function shadowMapBasedOnType(node, source, code) {
   // 1_000 to 1000
   if (
     node.type === "NumericLiteral" &&
-    node.originalLoc.originalValue.includes("_")
+    node?.originalLoc?.originalValue?.includes("_")
   ) {
     let original = node.originalLoc.originalValue;
     let shadowMap = [];
@@ -248,20 +248,23 @@ function shadowMapBasedOnType(node, source, code) {
         shadow: main + newStart,
       })),
     };
-  } else if (node.originalLoc.type === "ArrayExpression") {
+  } else if (node.type === "ArrayExpression") {
     let shadowMap = [
-      { main: node.originalLoc.start, shadow: node.start },
-      { main: node.originalLoc.end - 1, shadow: node.end - 1 },
+      { main: node?.originalLoc?.start, shadow: node.start },
+      {
+        main: node?.originalLoc?.end - 1,
+        shadow: node.end - 1,
+      },
     ];
-    node.originalLoc.elements.forEach((element, i) => {
-      if (i < node.originalLoc.elements.length - 1) {
+    node.elements.forEach((element, i) => {
+      if (i < node?.originalLoc?.elements.length - 1) {
         shadowMap.push({
           main:
-            node.originalLoc.elements[i].end +
+            node?.originalLoc?.elements[i].end +
             source
               .slice(
-                node.originalLoc.elements[i].end,
-                node.originalLoc.elements[i + 1].start
+                node?.originalLoc?.elements[i].end,
+                node?.originalLoc?.elements[i + 1].start
               )
               .indexOf(","),
           shadow:
@@ -275,19 +278,19 @@ function shadowMapBasedOnType(node, source, code) {
     return {
       shadowMap,
     };
-  } else if (node.originalLoc.type === "ObjectExpression") {
+  } else if (node.type === "ObjectExpression") {
     let shadowMap = [
-      { main: node.originalLoc.start, shadow: node.start },
-      { main: node.originalLoc.end - 1, shadow: node.end - 1 },
+      { main: node?.originalLoc?.start, shadow: node.start },
+      { main: node?.originalLoc?.end - 1, shadow: node.end - 1 },
     ];
-    node.originalLoc.properties.forEach((element, i) => {
+    node.properties.forEach((element, i) => {
       shadowMap.push({
         main:
-          node.originalLoc.properties[i].key.end +
+          node?.originalLoc?.properties[i].key.end +
           source
             .slice(
-              node.originalLoc.properties[i].key.end,
-              node.originalLoc.properties[i].value.start
+              node?.originalLoc?.properties[i].key.end,
+              node?.originalLoc?.properties[i].value.start
             )
             .indexOf(":"),
         shadow:
@@ -296,14 +299,14 @@ function shadowMapBasedOnType(node, source, code) {
             .slice(node.properties[i].key.end, node.properties[i].value.start)
             .indexOf(":"),
       });
-      if (i < node.originalLoc.properties.length - 1) {
+      if (i < node.properties.length - 1) {
         shadowMap.push({
           main:
-            node.originalLoc.properties[i].value.end +
+            node?.originalLoc?.properties[i].value.end +
             source
               .slice(
-                node.originalLoc.properties[i].value.end,
-                node.originalLoc.properties[i + 1].key.start
+                node?.originalLoc?.properties[i].value.end,
+                node?.originalLoc?.properties[i + 1].key.start
               )
               .indexOf(","),
           shadow:
@@ -321,22 +324,87 @@ function shadowMapBasedOnType(node, source, code) {
       shadowMap,
     };
   } else if (node.originalLoc.type === "VariableDeclaration") {
-    // node.originalLoc.kind.split("").map((main, i) => ({
-    //   main: node.originalLoc.start + i,
-    //   // shadow: node.start + i,
-    // }));
+    let shadowMap = [];
+    let transformMap = [];
+
+    // const -> let/var
+    node.originalLoc.kind.split("").forEach((main, i) => {
+      // if (i < node.kind.length) {
+      let inc = Math.min(node.kind.length - 1, i);
+      transformMap.push({
+        main: node.originalLoc.start + i,
+        cMain: main,
+        shadow: node.start + inc,
+        cShadow: node.kind[i] || "",
+      });
+      // }
+    });
+
+    // var a = 1, b = 2
+    // get the = and ,
+    let oDeclarations = node?.originalLoc?.declarations;
+    let nDeclarations = node.declarations;
+    if (oDeclarations.length === nDeclarations.length) {
+      nDeclarations.forEach((element, i) => {
+        if (nDeclarations[i].init) {
+          shadowMap.push({
+            ...(oDeclarations
+              ? {
+                  main:
+                    oDeclarations[i].id.end +
+                    source
+                      .slice(
+                        oDeclarations[i].id.end,
+                        oDeclarations[i].init.start
+                      )
+                      .indexOf("="),
+                }
+              : {}),
+            shadow:
+              nDeclarations[i].id.end +
+              code
+                .slice(nDeclarations[i].id.end, nDeclarations[i].init.start)
+                .indexOf("="),
+          });
+        }
+        if (i < nDeclarations.length - 1) {
+          let beforeComma = nDeclarations[i].init ? "init" : "id";
+          shadowMap.push({
+            ...(oDeclarations
+              ? {
+                  main:
+                    oDeclarations[i][beforeComma].end +
+                    source
+                      .slice(
+                        oDeclarations[i][beforeComma].end,
+                        oDeclarations[i + 1].id.start
+                      )
+                      .indexOf(","),
+                }
+              : {}),
+            shadow:
+              nDeclarations[i][beforeComma].end +
+              code
+                .slice(
+                  nDeclarations[i][beforeComma].end,
+                  nDeclarations[i + 1].id.start
+                )
+                .indexOf(","),
+          });
+        }
+      });
+    }
+
     if (
       source[node.originalLoc.end - 1] === ";" &&
       code[node.end - 1] === ";"
     ) {
-      return {
-        shadowStart: node.end - 1,
-        shadowEnd: node.end,
-        shadowMap: [{ main: node.originalLoc.end - 1, shadow: node.end - 1 }],
-      };
-    } else {
-      return -1;
+      shadowMap.push({ main: node.originalLoc.end - 1, shadow: node.end - 1 });
     }
+    return {
+      shadowMap,
+      transformMap,
+    };
   } else {
     return;
   }
@@ -452,7 +520,6 @@ function CompiledOutput({
       let transformedNodes = [];
       let ranges = [];
       let shadowIndexesMap = [];
-      let newIndexesMap = [];
       // retain the AST to use the metadata that has been added to nodes
       let { code, ast, map } = Babel.transformFromAstSync(
         sourceAST,
@@ -519,42 +586,33 @@ function CompiledOutput({
       });
 
       traverseAST(ast, node => {
-        // TODO: merge originalLoc/babelPlugin??
-        // if (node.babelPlugin) {
-        //   node.originalLoc = node.originalLoc || node.babelPlugin[0];
-        // }
         if (!node.originalLoc) return;
 
         // don't add if same loc?
-        if (node.originalLoc.start === undefined) {
-          newIndexesMap.push({
+        // if (
+        //   node.originalLoc.start === node.start ||
+        //   node.originalLoc.end === node.end
+        // )
+        let map = shadowMapBasedOnType(node, source, code);
+        if (map !== -1) {
+          shadowIndexesMap.push({
+            ...(node.originalLoc.start !== undefined
+              ? {
+                  type: node.originalLoc.type,
+                  mainStart: node.originalLoc.start,
+                  mainEnd: node.originalLoc.end,
+                  source: source.slice(
+                    node.originalLoc.start,
+                    node.originalLoc.end
+                  ),
+                }
+              : {}),
             shadow: code.slice(node.start, node.end),
             shadowStart: node.start,
             shadowEnd: node.end,
+            ...map,
           });
-        } else {
-          let map = shadowMapBasedOnType(node, source, code);
-          // if (
-          //   node.originalLoc.start === node.start ||
-          //   node.originalLoc.end === node.end
-          // )
-          if (map !== -1) {
-            shadowIndexesMap.push({
-              type: node.originalLoc.type,
-              mainStart: node.originalLoc.start,
-              mainEnd: node.originalLoc.end,
-              source: source.slice(
-                node.originalLoc.start,
-                node.originalLoc.end
-              ),
-              shadow: code.slice(node.start, node.end),
-              shadowStart: node.start,
-              shadowEnd: node.end,
-              ...map,
-            });
-          }
         }
-
         return;
       });
 
@@ -565,7 +623,6 @@ function CompiledOutput({
         size: new Blob([code], { type: "text/plain" }).size,
         transformedNodes,
         shadowIndexesMap,
-        newIndexesMap,
         ranges,
         ast,
       });
@@ -589,8 +646,7 @@ function CompiledOutput({
         canvas.current,
         source,
         compiled.code,
-        compiled.shadowIndexesMap,
-        compiled.newIndexesMap
+        compiled.shadowIndexesMap
       );
     }
   }, [compiled]);
@@ -701,7 +757,7 @@ export default function App({
     try {
       let sourceAST = Babel.parse(
         debouncedSource,
-        processOptions({}, debouncedPlugin)
+        processOptions({}, enableCustomPlugin ?? debouncedPlugin)
       );
 
       setAST(sourceAST);
@@ -992,6 +1048,8 @@ function createRenderer(canvas) {
     render(chars, startIdx = 0, endIdx = chars.length - 1) {
       for (let i = startIdx; i <= endIdx; i++) {
         const char = chars[i];
+        if (char.c === "") continue;
+
         const x = "animX" in char ? char.animX : char.x;
         const y = "animY" in char ? char.animY : char.y;
         if (char.bgStyle) {
@@ -1010,16 +1068,14 @@ function createRenderer(canvas) {
 
 let Renderer;
 
-function initialize(
-  canvas,
-  mainText,
-  shadowText,
-  shadowIndexesMap,
-  newIndexesMap
-) {
+function initialize(canvas, mainText, shadowText, shadowIndexesMap) {
   // abcde
-  const mainChars = mainText.split("").map(c => ({ c, x: 0, y: 0 }));
-  const shadowChars = shadowText.split("").map(c => ({ c, x: 0, y: 0 }));
+  const mainChars = mainText
+    .split("")
+    .map(c => ({ c, x: 0, y: 0, color: c.match(/[a-zA-Z0-9_]/) }));
+  const shadowChars = shadowText
+    .split("")
+    .map(c => ({ c, x: 0, y: 0, color: c.match(/[a-zA-Z0-9_]/) }));
   Renderer = Renderer || createRenderer(canvas);
 
   const Animator = (function () {
@@ -1041,26 +1097,39 @@ function initialize(
             const shadowChar = shadowChars[char.shadowIndex];
             char.animX = animate(char.x, shadowChar.x, t);
             char.animY = animate(char.y, shadowChar.y, t);
-            char.bgStyle = `rgba(255, 192, 203, ${animate(0.5, 1, t)})`;
+            if (char.color) {
+              char.bgStyle = `rgba(255, 192, 203, ${animate(0.3, 1, t)})`;
+            }
+          } else if ("transform" in char) {
+            const shadowChar = shadowChars[char.transform.shadow];
+            if (t > 0.5) {
+              char.c = char.transform.cShadow;
+            } else {
+              char.c = char.transform.cMain;
+            }
+            char.animX = animate(char.x, shadowChar.x, t);
+            char.animY = animate(char.y, shadowChar.y, t);
+
+            if (char.color) {
+              char.bgStyle = `rgba(156, 38, 176, ${animate(0.1, 0.5, t)})`;
+            }
           } else {
             char.fillStyle = `rgba(0, 0, 0, ${animate(1, 0, t)})`;
           }
         }
 
-        for (let createChars of createCharRuns) {
-          createChars.forEach(char => {
-            char.fillStyle = `rgba(0, 0, 0, ${animate(0, 1, t)})`;
-          });
-          Renderer.render(createChars);
+        for (let char of createCharRuns) {
+          char.fillStyle = `rgba(0, 0, 0, ${animate(0, 1, t)})`;
         }
+        Renderer.render(createCharRuns);
 
-        for (let indexes of createNewRuns) {
-          indexes.forEach(char => {
-            char.fillStyle = `rgba(0, 0, 0, ${animate(0, 1, t)})`;
+        for (let char of createNewChars) {
+          char.fillStyle = `rgba(0, 0, 0, ${animate(0, 1, t)})`;
+          if (char.color) {
             char.bgStyle = `rgba(102, 187, 106, ${animate(0, 0.2, t)})`;
-          });
-          Renderer.render(indexes);
+          }
         }
+        Renderer.render(createNewChars);
 
         Renderer.render(mainChars);
       };
@@ -1137,75 +1206,94 @@ function initialize(
     Animator.slowMode = e.shiftKey;
   };
 
-  const createNewRuns = (() => {
-    newIndexesMap = newIndexesMap.sort((a, b) =>
-      a.shadowStart > b.shadowStart ? 1 : -1
-    );
+  const createNewChars = (() => {
+    let newIndexesMap = shadowIndexesMap
+      .filter(a => a.source === undefined)
+      .sort((a, b) => (a.shadowStart > b.shadowStart ? 1 : -1));
     const result = [];
-    for (let indexes of newIndexesMap) {
-      let createNew = [];
-      for (
-        let index = indexes.shadowStart;
-        index < indexes.shadowEnd;
-        index++
-      ) {
-        createNew.push({
-          ...shadowChars[index],
+    for (let { shadowStart, shadowEnd, shadowMap } of newIndexesMap) {
+      if (!shadowMap) {
+        for (let index = shadowStart; index < shadowEnd; index++) {
+          result.push({
+            ...shadowChars[index],
+          });
+        }
+      } else {
+        shadowMap.forEach(({ shadow }) => {
+          result.push({
+            ...shadowChars[shadow],
+          });
         });
       }
-      if (createNew.length) result.push(createNew);
     }
     console.log("newIndexesMap");
     console.log(newIndexesMap);
-    console.log(
-      result.map(run => {
-        return run.reduce((a, b) => a + b.c, "");
-      })
-    );
     return result;
   })();
 
   const createCharRuns = (() => {
-    shadowIndexesMap = shadowIndexesMap.sort((a, b) =>
-      a.shadowStart > b.shadowStart ? 1 : -1
-    );
-    const result = [];
+    shadowIndexesMap = shadowIndexesMap
+      .filter(a => a.source)
+      .sort((a, b) => (a.shadowStart > b.shadowStart ? 1 : -1));
+    let result = [...shadowChars];
     for (const [i, value] of shadowIndexesMap.entries()) {
-      let createChars = [];
-      for (
-        let j = i === 0 ? 0 : shadowIndexesMap[i - 1].shadowEnd;
-        j < value.shadowStart;
-        j++
-      ) {
-        createChars.push({ ...shadowChars[j] });
-      }
-      if (createChars.length) result.push(createChars);
+      // let createChars = [];
+      // for (
+      //   let j = i === 0 ? 0 : shadowIndexesMap[i - 1].shadowEnd;
+      //   j < value.shadowStart;
+      //   j++
+      // ) {
+      //   createChars.push({ ...shadowChars[j] });
+      // }
+      // if (createChars.length) result.push(createChars);
 
-      // end
-      if (i === shadowIndexesMap.length - 1) {
-        createChars = [];
-        for (let j = value.shadowEnd; j < shadowChars.length; j++) {
-          createChars.push({ ...shadowChars[j] });
-        }
-        if (createChars.length) result.push(createChars);
-      }
+      // // end
+      // if (i === shadowIndexesMap.length - 1) {
+      //   createChars = [];
+      //   for (let j = value.shadowEnd; j < shadowChars.length; j++) {
+      //     createChars.push({ ...shadowChars[j] });
+      //   }
+      //   if (createChars.length) result.push(createChars);
+      // }
 
       // set shadowIndexes
-      let { mainEnd, mainStart, source, shadow, shadowMap } = value;
+      let {
+        mainEnd,
+        mainStart,
+        source,
+        shadow,
+        shadowMap,
+        transformMap,
+      } = value;
 
       // if moving same number of characters
       if (source.length === shadow.length) {
         let inc = 0;
         while (mainStart + inc < mainEnd) {
           mainChars[mainStart + inc].shadowIndex = value.shadowStart + inc;
+          result[value.shadowStart + inc] = undefined;
           inc++;
         }
       } else {
-        shadowMap.forEach(({ main, shadow }) => {
-          mainChars[main].shadowIndex = shadow;
-        });
+        if (shadowMap) {
+          shadowMap.forEach(({ main, shadow }) => {
+            if (mainChars[main]) {
+              mainChars[main].shadowIndex = shadow;
+              result[shadow] = undefined;
+            } else {
+              console.error(value);
+            }
+          });
+        }
+        if (transformMap) {
+          transformMap.forEach(({ main, shadow, cMain, cShadow }) => {
+            mainChars[main].transform = { shadow, cMain, cShadow };
+            result[shadow] = undefined;
+          });
+        }
       }
     }
+    result = result.filter(a => a);
 
     // no diff
     if (shadowIndexesMap.length === 0) {
@@ -1218,11 +1306,6 @@ function initialize(
 
     console.log("shadowIndexesMap");
     console.log(shadowIndexesMap);
-    console.log(
-      result.map(run => {
-        return run.reduce((a, b) => a + b.c, "");
-      })
-    );
     return result;
   })();
 }

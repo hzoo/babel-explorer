@@ -152,7 +152,7 @@ export function processOptions(options, customPlugin) {
         },
         VariableDeclaration(path) {
           if (!path.node.originalLoc) {
-            path.node.originalLoc = {
+            path.node.originalLoc = path.node.babelPlugin?.[0] || {
               type: path.node.type,
               start: path.node.start,
               end: path.node.end,

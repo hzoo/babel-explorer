@@ -60,13 +60,11 @@ module.exports = function babelPlugin(babel) {
               `vscode://file/${this.filePath}:${path.node.loc.start.line}:${path.node.loc.start.column}`
             )
           ),
-          t.objectProperty(
-            t.identifier("start"),
-            t.memberExpression(comment, t.identifier("start"))
-          ),
-          t.objectProperty(
-            t.identifier("end"),
-            t.memberExpression(comment, t.identifier("end"))
+          t.spreadElement(
+            t.callExpression(
+              t.memberExpression(t.identifier("t"), t.identifier("cloneNode")),
+              [comment, t.booleanLiteral(true)]
+            )
           ),
         ];
         const metaNode = t.objectExpression(props);
@@ -75,7 +73,11 @@ module.exports = function babelPlugin(babel) {
           t.assignmentExpression(
             "=",
             t.memberExpression(comment, t.identifier("babelPlugin")),
-            t.arrayExpression([metaNode])
+            t.logicalExpression(
+              "||",
+              t.memberExpression(comment, t.identifier("babelPlugin")),
+              t.arrayExpression([metaNode])
+            )
           )
         );
       },

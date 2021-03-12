@@ -70,6 +70,8 @@ export default function cloneNode<T extends t.Node>(
       newNode.loc = null;
     } else {
       newNode.loc = node.loc;
+      newNode.start = node.start;
+      newNode.end = node.end;
     }
   }
   if (has(node, "leadingComments")) {
