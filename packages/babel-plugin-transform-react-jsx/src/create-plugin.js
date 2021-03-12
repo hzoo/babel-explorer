@@ -342,8 +342,8 @@ You can set \`throwIfNamespace: false\` to bypass this warning.`,
     }
 
     function accumulateAttribute(array, attribute) {
-      if (!attribute.node._originalLoc) {
-        attribute.node._originalLoc = {
+      if (!attribute.node._sourceNode) {
+        attribute.node._sourceNode = {
           ...t.cloneNode(attribute.node, true),
         };
       }
@@ -566,7 +566,7 @@ You can set \`throwIfNamespace: false\` to bypass this warning.`,
 
       if (t.react.isCompatTag(tagName)) {
         let temp = t.stringLiteral(tagName);
-        temp._originalLoc = {
+        temp._sourceNode = {
           ...t.cloneNode(openingPath.node.name, true),
           type: "JSXIdentifier",
         };

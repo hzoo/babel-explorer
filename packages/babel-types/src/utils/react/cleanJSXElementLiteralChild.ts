@@ -50,8 +50,8 @@ export default function cleanJSXElementLiteralChild(
 
   if (str) {
     let temp = stringLiteral(str);
-    if (!temp._originalLoc) {
-      temp._originalLoc = {
+    if (!temp._sourceNode) {
+      temp._sourceNode = {
         type: "JSXText",
         start: child.start + child.value.indexOf(str),
         end: child.start + child.value.indexOf(str) + str.length,

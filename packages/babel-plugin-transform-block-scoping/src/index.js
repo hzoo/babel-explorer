@@ -26,8 +26,8 @@ export default declare((api, opts) => {
         if (!isBlockScoped(node)) return;
         path.traverse({
           Identifier(path) {
-            if (!path.node._originalLoc) {
-              path.node._originalLoc = {
+            if (!path.node._sourceNode) {
+              path.node._sourceNode = {
                 ...t.cloneNode(path.node, true),
               };
             }

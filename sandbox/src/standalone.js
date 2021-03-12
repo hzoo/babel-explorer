@@ -122,8 +122,8 @@ export function processOptions(options, customPlugin) {
       name: "mark-original-loc",
       visitor: {
         [handledVisitors](path) {
-          if (!path.node._originalLoc) {
-            path.node._originalLoc = path.node.babelPlugin?.[0] || {
+          if (!path.node._sourceNode) {
+            path.node._sourceNode = path.node.babelPlugin?.[0] || {
               ...t.cloneNode(path.node, true),
             };
           }

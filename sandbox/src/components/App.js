@@ -94,14 +94,14 @@ function traverseAST(sourceAST, cb) {
         if (value[i] && typeof value[i] === "object") {
           if (!sourceAST[key][i]) continue;
 
-          if (value[i]._originalLoc) {
+          if (value[i]._sourceNode) {
             cb(value[i]);
           }
           traverseAST(value[i], cb);
         }
       }
     } else if (typeof value === "object") {
-      if (value._originalLoc) {
+      if (value._sourceNode) {
         cb(value);
       }
       traverseAST(value, cb);
@@ -174,16 +174,16 @@ function shadowMapBasedOnType(node, source, code) {
   // 1_000 to 1000
   if (
     node.type === "NumericLiteral" &&
-    node?._originalLoc?.extra?.raw?.includes("_")
+    node?._sourceNode?.extra?.raw?.includes("_")
   ) {
-    let original = node._originalLoc.extra.raw;
+    let original = node._sourceNode.extra.raw;
     let shadowMap = [];
     let index = -1;
     for (let i = 0; i < original.length; i++) {
       if (original[i] !== "_") {
         index++;
         shadowMap.push({
-          main: node._originalLoc.start + i,
+          main: node._sourceNode.start + i,
           shadow: node.start + index,
         });
       }
@@ -191,26 +191,26 @@ function shadowMapBasedOnType(node, source, code) {
     return { shadowMap };
     // "1  ;" to "1;"
   } else if (node.type === "ExpressionStatement") {
-    if (source[node._originalLoc.end - 1] !== ";" || code[node.end - 1] !== ";")
+    if (source[node._sourceNode.end - 1] !== ";" || code[node.end - 1] !== ";")
       return -1;
     return {
-      mainStart: node._originalLoc.end - 1,
-      mainEnd: node._originalLoc.end,
+      mainStart: node._sourceNode.end - 1,
+      mainEnd: node._sourceNode.end,
       shadowStart: node.end - 1,
       shadowEnd: node.end,
-      shadowMap: [{ main: node._originalLoc.end - 1, shadow: node.end - 1 }],
+      shadowMap: [{ main: node._sourceNode.end - 1, shadow: node.end - 1 }],
     };
-  } else if (node._originalLoc.type === "JSXAttribute") {
+  } else if (node._sourceNode.type === "JSXAttribute") {
     // <a b="1"></a> -> _jsx("a", {b: "1"})
     return {
       transformMap: [
         {
           main:
-            node?._originalLoc?.name.end +
+            node?._sourceNode?.name.end +
             source
               .slice(
-                node?._originalLoc?.name.end,
-                node?._originalLoc?.value.start
+                node?._sourceNode?.name.end,
+                node?._sourceNode?.value.start
               )
               .indexOf("="),
           shadow:
@@ -221,49 +221,49 @@ function shadowMapBasedOnType(node, source, code) {
         },
       ],
     };
-  } else if (node._originalLoc.type === "JSXIdentifier") {
+  } else if (node._sourceNode.type === "JSXIdentifier") {
     return {
       shadowMap: [
-        ...Array(node._originalLoc.end - node._originalLoc.start).keys(),
+        ...Array(node._sourceNode.end - node._sourceNode.start).keys(),
       ].map(main => ({
-        main: main + node._originalLoc.start,
+        main: main + node._sourceNode.start,
         shadow: main + node.start + 1,
       })),
     };
-  } else if (node._originalLoc.type === "JSXText") {
+  } else if (node._sourceNode.type === "JSXText") {
     let newStart = node.start + 1;
     let newEnd = node.end - 1;
     return {
       shadowStart: newStart,
       shadowEnd: newEnd,
       shadowMap: [
-        ...Array(node._originalLoc.end - node._originalLoc.start).keys(),
+        ...Array(node._sourceNode.end - node._sourceNode.start).keys(),
       ].map(main => ({
-        main: main + node._originalLoc.start,
+        main: main + node._sourceNode.start,
         shadow: main + newStart,
       })),
     };
   } else if (node.type === "ArrayExpression") {
     let shadowMap = [
-      { main: node?._originalLoc?.start, shadow: node.start },
+      { main: node?._sourceNode?.start, shadow: node.start },
       {
-        main: node?._originalLoc?.end - 1,
+        main: node?._sourceNode?.end - 1,
         shadow: node.end - 1,
       },
     ];
     node.elements.forEach((element, i) => {
-      if (i < node?._originalLoc?.elements.length - 1) {
-        if (node?._originalLoc?.elements[i + 1] === null) {
+      if (i < node?._sourceNode?.elements.length - 1) {
+        if (node?._sourceNode?.elements[i + 1] === null) {
           // TODO: sparse arrays
           throw new Error("TODO: doesn't handle sparse arrays [1,,2] yet");
         }
         shadowMap.push({
           main:
-            node?._originalLoc?.elements[i].end +
+            node?._sourceNode?.elements[i].end +
             source
               .slice(
-                node?._originalLoc?.elements[i].end,
-                node?._originalLoc?.elements[i + 1]?.start
+                node?._sourceNode?.elements[i].end,
+                node?._sourceNode?.elements[i + 1]?.start
               )
               .indexOf(","),
           shadow:
@@ -277,10 +277,10 @@ function shadowMapBasedOnType(node, source, code) {
     // TODO: account for trailing comma? bug with .extra not reset?
     // if (
     //   node?.extra?.trailingComma ||
-    //   node?._originalLoc?.extra?.trailingComma
+    //   node?._sourceNode?.extra?.trailingComma
     // ) {
     //   shadowMap.push({
-    //     main: node?._originalLoc?.extra?.trailingComma,
+    //     main: node?._sourceNode?.extra?.trailingComma,
     //     shadow: node?.extra?.trailingComma,
     //   });
     // }
@@ -289,25 +289,25 @@ function shadowMapBasedOnType(node, source, code) {
     };
   } else if (node.type === "BlockStatement") {
     let shadowMap = [
-      { main: node?._originalLoc?.start, shadow: node.start },
-      { main: node?._originalLoc?.end - 1, shadow: node.end - 1 },
+      { main: node?._sourceNode?.start, shadow: node.start },
+      { main: node?._sourceNode?.end - 1, shadow: node.end - 1 },
     ];
     return {
       shadowMap,
     };
   } else if (node.type === "ObjectExpression") {
     let shadowMap = [
-      { main: node?._originalLoc?.start, shadow: node.start },
-      { main: node?._originalLoc?.end - 1, shadow: node.end - 1 },
+      { main: node?._sourceNode?.start, shadow: node.start },
+      { main: node?._sourceNode?.end - 1, shadow: node.end - 1 },
     ];
     node.properties.forEach((element, i) => {
       shadowMap.push({
         main:
-          node?._originalLoc?.properties[i].key.end +
+          node?._sourceNode?.properties[i].key.end +
           source
             .slice(
-              node?._originalLoc?.properties[i].key.end,
-              node?._originalLoc?.properties[i].value.start
+              node?._sourceNode?.properties[i].key.end,
+              node?._sourceNode?.properties[i].value.start
             )
             .indexOf(":"),
         shadow:
@@ -319,11 +319,11 @@ function shadowMapBasedOnType(node, source, code) {
       if (i < node.properties.length - 1) {
         shadowMap.push({
           main:
-            node?._originalLoc?.properties[i].value.end +
+            node?._sourceNode?.properties[i].value.end +
             source
               .slice(
-                node?._originalLoc?.properties[i].value.end,
-                node?._originalLoc?.properties[i + 1].key.start
+                node?._sourceNode?.properties[i].value.end,
+                node?._sourceNode?.properties[i + 1].key.start
               )
               .indexOf(","),
           shadow:
@@ -340,16 +340,16 @@ function shadowMapBasedOnType(node, source, code) {
     return {
       shadowMap,
     };
-  } else if (node._originalLoc.type === "VariableDeclaration") {
+  } else if (node._sourceNode.type === "VariableDeclaration") {
     let shadowMap = [];
     let transformMap = [];
 
     // const -> let/var
-    node._originalLoc.kind.split("").forEach((main, i) => {
+    node._sourceNode.kind.split("").forEach((main, i) => {
       // if (i < node.kind.length) {
       let inc = Math.min(node.kind.length - 1, i);
       transformMap.push({
-        main: node._originalLoc.start + i,
+        main: node._sourceNode.start + i,
         cMain: main,
         shadow: node.start + inc,
         cShadow: node.kind[i] || "",
@@ -359,7 +359,7 @@ function shadowMapBasedOnType(node, source, code) {
 
     // var a = 1, b = 2
     // get the = and ,
-    let oDeclarations = node?._originalLoc?.declarations;
+    let oDeclarations = node?._sourceNode?.declarations;
     let nDeclarations = node.declarations;
     if (oDeclarations?.length === nDeclarations.length) {
       nDeclarations.forEach((element, i) => {
@@ -413,10 +413,10 @@ function shadowMapBasedOnType(node, source, code) {
     }
 
     if (
-      source[node._originalLoc.end - 1] === ";" &&
+      source[node._sourceNode.end - 1] === ";" &&
       code[node.end - 1] === ";"
     ) {
-      shadowMap.push({ main: node._originalLoc.end - 1, shadow: node.end - 1 });
+      shadowMap.push({ main: node._sourceNode.end - 1, shadow: node.end - 1 });
     }
     return {
       shadowMap,
@@ -427,14 +427,11 @@ function shadowMapBasedOnType(node, source, code) {
       shadowMap: [...Array(node.operator.length)].map((_, i) => {
         return {
           main:
-            node?._originalLoc?.type === "LogicalExpression" &&
-            node._originalLoc.left.end +
+            node?._sourceNode?.type === "LogicalExpression" &&
+            node._sourceNode.left.end +
               source
-                .slice(
-                  node._originalLoc.left.end,
-                  node._originalLoc.right.start
-                )
-                .indexOf(node._originalLoc.operator) +
+                .slice(node._sourceNode.left.end, node._sourceNode.right.start)
+                .indexOf(node._sourceNode.operator) +
               i,
           shadow:
             node.left.end +
@@ -448,14 +445,11 @@ function shadowMapBasedOnType(node, source, code) {
       shadowMap: [...Array(node.operator.length)].map((_, i) => {
         return {
           main:
-            node?._originalLoc?.type === "AssignmentExpression" &&
-            node._originalLoc.left.end +
+            node?._sourceNode?.type === "AssignmentExpression" &&
+            node._sourceNode.left.end +
               source
-                .slice(
-                  node._originalLoc.left.end,
-                  node._originalLoc.right.start
-                )
-                .indexOf(node._originalLoc.operator) +
+                .slice(node._sourceNode.left.end, node._sourceNode.right.start)
+                .indexOf(node._sourceNode.operator) +
               i,
           shadow:
             node.left.end +
@@ -469,14 +463,11 @@ function shadowMapBasedOnType(node, source, code) {
       shadowMap: [...Array(node.operator.length)].map((_, i) => {
         return {
           main:
-            node?._originalLoc?.type === "BinaryExpression" &&
-            node._originalLoc.left.end +
+            node?._sourceNode?.type === "BinaryExpression" &&
+            node._sourceNode.left.end +
               source
-                .slice(
-                  node._originalLoc.left.end,
-                  node._originalLoc.right.start
-                )
-                .indexOf(node._originalLoc.operator) +
+                .slice(node._sourceNode.left.end, node._sourceNode.right.start)
+                .indexOf(node._sourceNode.operator) +
               i,
           shadow:
             node.left.end +
@@ -492,12 +483,12 @@ function shadowMapBasedOnType(node, source, code) {
       shadowMap: [
         {
           main:
-            node?._originalLoc?.type === "MemberExpression" &&
-            node._originalLoc.object.end +
+            node?._sourceNode?.type === "MemberExpression" &&
+            node._sourceNode.object.end +
               source
                 .slice(
-                  node._originalLoc.object.end,
-                  node._originalLoc.property.start
+                  node._sourceNode.object.end,
+                  node._sourceNode.property.start
                 )
                 .indexOf("."),
           shadow:
@@ -509,7 +500,7 @@ function shadowMapBasedOnType(node, source, code) {
   } else if (
     // same type
     // preventing something like unhandled node (ObjectPattern -> Identifier)
-    node.type === node._originalLoc.type &&
+    node.type === node._sourceNode.type &&
     (node.type === "Identifier" ||
       node.type === "StringLiteral" ||
       node.type === "BooleanLiteral" ||
@@ -519,7 +510,7 @@ function shadowMapBasedOnType(node, source, code) {
     return;
   } else {
     console.error(
-      `unsupported! original: ${node._originalLoc.type}, type: ${node.type}`
+      `unsupported! original: ${node._sourceNode.type}, type: ${node.type}`
     );
     return -1;
   }
@@ -704,14 +695,14 @@ function CompiledOutput({
         let map = shadowMapBasedOnType(node, source, code);
         if (map !== -1) {
           shadowIndexesMap.push({
-            ...(node._originalLoc.start !== undefined
+            ...(node._sourceNode.start !== undefined
               ? {
-                  type: node._originalLoc.type,
-                  mainStart: node._originalLoc.start,
-                  mainEnd: node._originalLoc.end,
+                  type: node._sourceNode.type,
+                  mainStart: node._sourceNode.start,
+                  mainEnd: node._sourceNode.end,
                   source: source.slice(
-                    node._originalLoc.start,
-                    node._originalLoc.end
+                    node._sourceNode.start,
+                    node._sourceNode.end
                   ),
                 }
               : {}),
