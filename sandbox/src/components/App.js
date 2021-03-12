@@ -422,9 +422,49 @@ function shadowMapBasedOnType(node, source, code) {
       shadowMap,
       transformMap,
     };
-  }
-  // node.type === "UnaryExpression" ||
-  else if (node.type === "BinaryExpression") {
+  } else if (node.type === "LogicalExpression") {
+    return {
+      shadowMap: [...Array(node.operator.length)].map((_, i) => {
+        return {
+          main:
+            node?._originalLoc?.type === "LogicalExpression" &&
+            node._originalLoc.left.end +
+              source
+                .slice(
+                  node._originalLoc.left.end,
+                  node._originalLoc.right.start
+                )
+                .indexOf(node._originalLoc.operator) +
+              i,
+          shadow:
+            node.left.end +
+            code.slice(node.left.end, node.right.start).indexOf(node.operator) +
+            i,
+        };
+      }),
+    };
+  } else if (node.type === "AssignmentExpression") {
+    return {
+      shadowMap: [...Array(node.operator.length)].map((_, i) => {
+        return {
+          main:
+            node?._originalLoc?.type === "AssignmentExpression" &&
+            node._originalLoc.left.end +
+              source
+                .slice(
+                  node._originalLoc.left.end,
+                  node._originalLoc.right.start
+                )
+                .indexOf(node._originalLoc.operator) +
+              i,
+          shadow:
+            node.left.end +
+            code.slice(node.left.end, node.right.start).indexOf(node.operator) +
+            i,
+        };
+      }),
+    };
+  } else if (node.type === "BinaryExpression") {
     return {
       shadowMap: [...Array(node.operator.length)].map((_, i) => {
         return {
@@ -445,9 +485,9 @@ function shadowMapBasedOnType(node, source, code) {
         };
       }),
     };
+  } else if (node.type === "MemberExpression") {
     // a.b
     // TODO: a[b]
-  } else if (node.type === "MemberExpression") {
     return {
       shadowMap: [
         {

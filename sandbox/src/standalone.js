@@ -108,6 +108,8 @@ export function processOptions(options, customPlugin) {
     "ObjectExpression",
     "ArrayExpression",
     "ExpressionStatement",
+    "AssignmentExpression",
+    "LogicalExpression",
     "BinaryExpression",
     "Literal",
     "Identifier",
