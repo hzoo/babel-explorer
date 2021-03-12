@@ -102,61 +102,25 @@ export function processOptions(options, customPlugin) {
     plugins.unshift(compileModule(customPlugin));
   }
 
+  const handledVisitors = [
+    "VariableDeclaration",
+    "ObjectExpression",
+    "ArrayExpression",
+    "ExpressionStatement",
+    "BinaryExpression",
+    "Literal",
+    "Identifier",
+  ].join("|");
+
   // TODO: test
-  plugins.unshift(function customPlugin2() {
+  plugins.unshift(function customPlugin2({ types: t }) {
     return {
       name: "mark-original-loc",
       visitor: {
-        "ExpressionStatement|BinaryExpression|Literal|Identifier"(path) {
-          if (!path.node.originalLoc) {
-            path.node.originalLoc = {
-              type: path.node.type,
-              start: path.node.start,
-              end: path.node.end,
-            };
-          }
-        },
-        ArrayExpression(path) {
-          if (!path.node.originalLoc) {
-            path.node.originalLoc = {
-              type: path.node.type,
-              start: path.node.start,
-              end: path.node.end,
-              elements: path.node.elements.map(e => ({
-                start: e.start,
-                end: e.end,
-              })),
-            };
-          }
-        },
-        ObjectExpression(path) {
-          if (!path.node.originalLoc) {
-            path.node.originalLoc = {
-              type: path.node.type,
-              start: path.node.start,
-              end: path.node.end,
-              properties: path.node.properties.map(p => {
-                return {
-                  key: {
-                    start: p.key.start,
-                    end: p.key.end,
-                  },
-                  value: {
-                    start: p.value.start,
-                    end: p.value.end,
-                  },
-                };
-              }),
-            };
-          }
-        },
-        VariableDeclaration(path) {
-          if (!path.node.originalLoc) {
-            path.node.originalLoc = path.node.babelPlugin?.[0] || {
-              type: path.node.type,
-              start: path.node.start,
-              end: path.node.end,
-              kind: path.node.kind,
+        [handledVisitors](path) {
+          if (!path.node._originalLoc) {
+            path.node._originalLoc = path.node.babelPlugin?.[0] || {
+              ...t.cloneNode(path.node, true),
             };
           }
         },
@@ -182,21 +146,12 @@ export function processOptions(options, customPlugin) {
     ...options,
     presets,
     plugins,
-    // for each visitor, but not if code is untouched by babel (in this case that's bad?)
-    wrapPluginVisitorMethod(pluginAlias, visitorType, callback) {
-      return function (...args) {
-        let node = args[0].node;
-        if (node.type === "NumericLiteral") {
-          if (!node.originalLoc)
-            node.originalLoc = {
-              type: node.type,
-              start: node.start,
-              end: node.end,
-              originalValue: node?.extra?.raw,
-            };
-        }
-        callback.call(this, ...args);
-      };
-    },
+    // for each visitor
+    // wrapPluginVisitorMethod(pluginAlias, visitorType, callback) {
+    //   return function (...args) {
+    //     let node = args[0].node;
+    //     callback.call(this, ...args);
+    //   };
+    // },
   };
 }

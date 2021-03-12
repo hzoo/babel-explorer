@@ -98,10 +98,7 @@ module.exports = function babelPlugin(babel) {
           ].some(a => a === path.node.callee.property.name)
         ) {
           // if the path is other than path.replaceWith (parent.replaceWith)
-          const currentPath =
-            (path.node.callee.object.type === "Identifier" &&
-              path.node.callee.object.name) ||
-            "path";
+          const currentPath = path.get("callee.object");
           const comment = getMetaComment(path);
           // "C:\\Users\\babel\\packages\\babel-plugin-proposal-unicode-property-regex\\src\\index.js".match(/babel-(plugin|helper)-((\w+-?)+)/)
           // {
@@ -123,67 +120,28 @@ module.exports = function babelPlugin(babel) {
               )
             ),
           ];
-          const pathInScope = path.scope.hasBinding(currentPath);
-          const currentPathNode = t.identifier(currentPath);
-          const start = comment
-            ? t.objectProperty(
-                t.identifier("start"),
-                t.memberExpression(comment, t.identifier("start"))
+          const currentPathNode = currentPath.node;
+          props.push(
+            t.spreadElement(
+              t.callExpression(
+                t.memberExpression(
+                  t.identifier("t"),
+                  t.identifier("cloneNode")
+                ),
+                [
+                  comment
+                    ? t.optionalMemberExpression(
+                        comment,
+                        t.identifier("node"),
+                        false,
+                        true
+                      )
+                    : currentPathNode,
+                  t.booleanLiteral(true),
+                ]
               )
-            : pathInScope
-            ? t.objectProperty(
-                t.identifier("start"),
-                t.optionalMemberExpression(
-                  t.optionalMemberExpression(
-                    currentPathNode,
-                    t.identifier("node"),
-                    false,
-                    true
-                  ),
-                  t.identifier("start"),
-                  false,
-                  true
-                )
-              )
-            : null;
-          if (start) props.push(start);
-          const end = comment
-            ? t.objectProperty(
-                t.identifier("end"),
-                t.memberExpression(comment, t.identifier("end"))
-              )
-            : pathInScope
-            ? t.objectProperty(
-                t.identifier("end"),
-                t.optionalMemberExpression(
-                  t.optionalMemberExpression(
-                    currentPathNode,
-                    t.identifier("node"),
-                    false,
-                    true
-                  ),
-                  t.identifier("end"),
-                  false,
-                  true
-                )
-              )
-            : null;
-          if (end) props.push(end);
-          // TODO: do something with ast node?
-          // const node = comment
-          //   ? t.objectProperty(t.identifier("node"), comment)
-          //   : pathInScope
-          //   ? t.objectProperty(
-          //       t.identifier("node"),
-          //       t.optionalMemberExpression(
-          //         currentPathNode,
-          //         t.identifier("node"),
-          //         false,
-          //         true
-          //       )
-          //     )
-          //   : null;
-          // if (node) props.push(node);
+            )
+          );
           const metaNode = t.objectExpression(props);
           if (path.addMetadata) {
             path.addMetadata(metaNode, "transform-babel-metadata");

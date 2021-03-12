@@ -94,14 +94,14 @@ function traverseAST(sourceAST, cb) {
         if (value[i] && typeof value[i] === "object") {
           if (!sourceAST[key][i]) continue;
 
-          if (value[i].originalLoc) {
+          if (value[i]._originalLoc) {
             cb(value[i]);
           }
           traverseAST(value[i], cb);
         }
       }
     } else if (typeof value === "object") {
-      if (value.originalLoc) {
+      if (value._originalLoc) {
         cb(value);
       }
       traverseAST(value, cb);
@@ -196,16 +196,16 @@ function shadowMapBasedOnType(node, source, code) {
   // 1_000 to 1000
   if (
     node.type === "NumericLiteral" &&
-    node?.originalLoc?.originalValue?.includes("_")
+    node?._originalLoc?.extra?.raw?.includes("_")
   ) {
-    let original = node.originalLoc.originalValue;
+    let original = node._originalLoc.extra.raw;
     let shadowMap = [];
     let index = -1;
     for (let i = 0; i < original.length; i++) {
       if (original[i] !== "_") {
         index++;
         shadowMap.push({
-          main: node.originalLoc.start + i,
+          main: node._originalLoc.start + i,
           shadow: node.start + index,
         });
       }
@@ -213,58 +213,75 @@ function shadowMapBasedOnType(node, source, code) {
     return { shadowMap };
     // "1  ;" to "1;"
   } else if (node.type === "ExpressionStatement") {
-    if (source[node.originalLoc.end - 1] !== ";" || code[node.end - 1] !== ";")
+    if (source[node._originalLoc.end - 1] !== ";" || code[node.end - 1] !== ";")
       return -1;
     return {
-      mainStart: node.originalLoc.end - 1,
-      mainEnd: node.originalLoc.end,
+      mainStart: node._originalLoc.end - 1,
+      mainEnd: node._originalLoc.end,
       shadowStart: node.end - 1,
       shadowEnd: node.end,
-      shadowMap: [{ main: node.originalLoc.end - 1, shadow: node.end - 1 }],
+      shadowMap: [{ main: node._originalLoc.end - 1, shadow: node.end - 1 }],
     };
-  } else if (node.originalLoc.type === "JSXIdentifier") {
-    let newStart = node.start + 1;
-    let newEnd = node.end - 1;
+  } else if (node._originalLoc.type === "JSXAttribute") {
+    // <a b="1"></a> -> _jsx("a", {b: "1"})
     return {
-      shadowStart: newStart,
-      shadowEnd: newEnd,
+      transformMap: [
+        {
+          main:
+            node?._originalLoc?.name.end +
+            source
+              .slice(
+                node?._originalLoc?.name.end,
+                node?._originalLoc?.value.start
+              )
+              .indexOf("="),
+          shadow:
+            node.key.end +
+            code.slice(node.key.end, node.value.start).indexOf(":"),
+          cMain: "=",
+          cShadow: ":",
+        },
+      ],
+    };
+  } else if (node._originalLoc.type === "JSXIdentifier") {
+    return {
       shadowMap: [
-        ...Array(node.originalLoc.end - node.originalLoc.start).keys(),
+        ...Array(node._originalLoc.end - node._originalLoc.start).keys(),
       ].map(main => ({
-        main: main + node.originalLoc.start,
-        shadow: main + newStart,
+        main: main + node._originalLoc.start,
+        shadow: main + node.start + 1,
       })),
     };
-  } else if (node.originalLoc.type === "JSXText") {
+  } else if (node._originalLoc.type === "JSXText") {
     let newStart = node.start + 1;
     let newEnd = node.end - 1;
     return {
       shadowStart: newStart,
       shadowEnd: newEnd,
       shadowMap: [
-        ...Array(node.originalLoc.end - node.originalLoc.start).keys(),
+        ...Array(node._originalLoc.end - node._originalLoc.start).keys(),
       ].map(main => ({
-        main: main + node.originalLoc.start,
+        main: main + node._originalLoc.start,
         shadow: main + newStart,
       })),
     };
   } else if (node.type === "ArrayExpression") {
     let shadowMap = [
-      { main: node?.originalLoc?.start, shadow: node.start },
+      { main: node?._originalLoc?.start, shadow: node.start },
       {
-        main: node?.originalLoc?.end - 1,
+        main: node?._originalLoc?.end - 1,
         shadow: node.end - 1,
       },
     ];
     node.elements.forEach((element, i) => {
-      if (i < node?.originalLoc?.elements.length - 1) {
+      if (i < node?._originalLoc?.elements.length - 1) {
         shadowMap.push({
           main:
-            node?.originalLoc?.elements[i].end +
+            node?._originalLoc?.elements[i].end +
             source
               .slice(
-                node?.originalLoc?.elements[i].end,
-                node?.originalLoc?.elements[i + 1].start
+                node?._originalLoc?.elements[i].end,
+                node?._originalLoc?.elements[i + 1].start
               )
               .indexOf(","),
           shadow:
@@ -280,17 +297,17 @@ function shadowMapBasedOnType(node, source, code) {
     };
   } else if (node.type === "ObjectExpression") {
     let shadowMap = [
-      { main: node?.originalLoc?.start, shadow: node.start },
-      { main: node?.originalLoc?.end - 1, shadow: node.end - 1 },
+      { main: node?._originalLoc?.start, shadow: node.start },
+      { main: node?._originalLoc?.end - 1, shadow: node.end - 1 },
     ];
     node.properties.forEach((element, i) => {
       shadowMap.push({
         main:
-          node?.originalLoc?.properties[i].key.end +
+          node?._originalLoc?.properties[i].key.end +
           source
             .slice(
-              node?.originalLoc?.properties[i].key.end,
-              node?.originalLoc?.properties[i].value.start
+              node?._originalLoc?.properties[i].key.end,
+              node?._originalLoc?.properties[i].value.start
             )
             .indexOf(":"),
         shadow:
@@ -302,11 +319,11 @@ function shadowMapBasedOnType(node, source, code) {
       if (i < node.properties.length - 1) {
         shadowMap.push({
           main:
-            node?.originalLoc?.properties[i].value.end +
+            node?._originalLoc?.properties[i].value.end +
             source
               .slice(
-                node?.originalLoc?.properties[i].value.end,
-                node?.originalLoc?.properties[i + 1].key.start
+                node?._originalLoc?.properties[i].value.end,
+                node?._originalLoc?.properties[i + 1].key.start
               )
               .indexOf(","),
           shadow:
@@ -323,16 +340,16 @@ function shadowMapBasedOnType(node, source, code) {
     return {
       shadowMap,
     };
-  } else if (node.originalLoc.type === "VariableDeclaration") {
+  } else if (node._originalLoc.type === "VariableDeclaration") {
     let shadowMap = [];
     let transformMap = [];
 
     // const -> let/var
-    node.originalLoc.kind.split("").forEach((main, i) => {
+    node._originalLoc.kind.split("").forEach((main, i) => {
       // if (i < node.kind.length) {
       let inc = Math.min(node.kind.length - 1, i);
       transformMap.push({
-        main: node.originalLoc.start + i,
+        main: node._originalLoc.start + i,
         cMain: main,
         shadow: node.start + inc,
         cShadow: node.kind[i] || "",
@@ -342,9 +359,9 @@ function shadowMapBasedOnType(node, source, code) {
 
     // var a = 1, b = 2
     // get the = and ,
-    let oDeclarations = node?.originalLoc?.declarations;
+    let oDeclarations = node?._originalLoc?.declarations;
     let nDeclarations = node.declarations;
-    if (oDeclarations.length === nDeclarations.length) {
+    if (oDeclarations?.length === nDeclarations.length) {
       nDeclarations.forEach((element, i) => {
         if (nDeclarations[i].init) {
           shadowMap.push({
@@ -396,17 +413,25 @@ function shadowMapBasedOnType(node, source, code) {
     }
 
     if (
-      source[node.originalLoc.end - 1] === ";" &&
+      source[node._originalLoc.end - 1] === ";" &&
       code[node.end - 1] === ";"
     ) {
-      shadowMap.push({ main: node.originalLoc.end - 1, shadow: node.end - 1 });
+      shadowMap.push({ main: node._originalLoc.end - 1, shadow: node.end - 1 });
     }
     return {
       shadowMap,
       transformMap,
     };
-  } else {
+  } else if (
+    node.type === "Identifier" ||
+    node.type === "StringLiteral" ||
+    node.type === "BooleanLiteral" ||
+    node.type === "NumericLiteral"
+  ) {
     return;
+  } else {
+    console.error("unsupported", node._originalLoc.type);
+    return -1;
   }
 }
 
@@ -586,34 +611,26 @@ function CompiledOutput({
       });
 
       traverseAST(ast, node => {
-        if (!node.originalLoc) return;
-
-        // don't add if same loc?
-        // if (
-        //   node.originalLoc.start === node.start ||
-        //   node.originalLoc.end === node.end
-        // )
         let map = shadowMapBasedOnType(node, source, code);
         if (map !== -1) {
           shadowIndexesMap.push({
-            ...(node.originalLoc.start !== undefined
+            ...(node._originalLoc.start !== undefined
               ? {
-                  type: node.originalLoc.type,
-                  mainStart: node.originalLoc.start,
-                  mainEnd: node.originalLoc.end,
+                  type: node._originalLoc.type,
+                  mainStart: node._originalLoc.start,
+                  mainEnd: node._originalLoc.end,
                   source: source.slice(
-                    node.originalLoc.start,
-                    node.originalLoc.end
+                    node._originalLoc.start,
+                    node._originalLoc.end
                   ),
                 }
               : {}),
-            shadow: code.slice(node.start, node.end),
+            // shadow: code.slice(node.start, node.end),
             shadowStart: node.start,
             shadowEnd: node.end,
             ...map,
           });
         }
-        return;
       });
 
       gzipSize(code).then(s => setGzip(s));
@@ -826,13 +843,13 @@ export default function App({
                   setSelection(data);
                 }}
               />
-              <FileSize>
+              {/* <FileSize>
                 {size}b, {gzip}b
                 <button onClick={() => toggleCustomPlugin(!enableCustomPlugin)}>
                   Show Plugin
                 </button>
                 <button onClick={() => toggleAST(!showAST)}>Show AST</button>
-              </FileSize>
+              </FileSize> */}
               {showAST && ast ? <AST ast={ast}></AST> : null}
             </Column>
           </Wrapper>
@@ -1011,7 +1028,7 @@ function createRenderer(canvas) {
   ctx.textBaseline = "top";
   ctx.font = "1em Operator Mono SSm, monospace";
   const metrics = ctx.measureText("m");
-  console.log(metrics);
+  // console.log(metrics);
 
   const maxWidth = 700;
   function computePositions(chars) {
@@ -1092,6 +1109,8 @@ function initialize(canvas, mainText, shadowText, shadowIndexesMap) {
         // remove for art*
         Renderer.clear();
 
+        let extraShadows = [];
+
         for (let char of mainChars) {
           if ("shadowIndex" in char) {
             const shadowChar = shadowChars[char.shadowIndex];
@@ -1099,6 +1118,16 @@ function initialize(canvas, mainText, shadowText, shadowIndexesMap) {
             char.animY = animate(char.y, shadowChar.y, t);
             if (char.color) {
               char.bgStyle = `rgba(255, 192, 203, ${animate(0.3, 1, t)})`;
+            }
+            if (char.shadows) {
+              char.shadows.forEach(shadow => {
+                const extraIndex = shadowChars[shadow];
+                extraShadows.push({
+                  animX: animate(char.x, extraIndex.x, t),
+                  animY: animate(char.y, extraIndex.y, t),
+                  ...extraIndex,
+                });
+              });
             }
           } else if ("transform" in char) {
             const shadowChar = shadowChars[char.transform.shadow];
@@ -1132,6 +1161,7 @@ function initialize(canvas, mainText, shadowText, shadowIndexesMap) {
         Renderer.render(createNewChars);
 
         Renderer.render(mainChars);
+        Renderer.render(extraShadows);
       };
     })();
 
@@ -1206,10 +1236,11 @@ function initialize(canvas, mainText, shadowText, shadowIndexesMap) {
     Animator.slowMode = e.shiftKey;
   };
 
+  console.log(shadowIndexesMap);
+
   const createNewChars = (() => {
-    let newIndexesMap = shadowIndexesMap
-      .filter(a => a.source === undefined)
-      .sort((a, b) => (a.shadowStart > b.shadowStart ? 1 : -1));
+    // only newly inserted chars
+    let newIndexesMap = shadowIndexesMap.filter(a => a.source === undefined);
     const result = [];
     for (let { shadowStart, shadowEnd, shadowMap } of newIndexesMap) {
       if (!shadowMap) {
@@ -1226,86 +1257,47 @@ function initialize(canvas, mainText, shadowText, shadowIndexesMap) {
         });
       }
     }
-    console.log("newIndexesMap");
-    console.log(newIndexesMap);
     return result;
   })();
 
   const createCharRuns = (() => {
-    shadowIndexesMap = shadowIndexesMap
-      .filter(a => a.source)
-      .sort((a, b) => (a.shadowStart > b.shadowStart ? 1 : -1));
+    // transformed/same chars
+    shadowIndexesMap = shadowIndexesMap.filter(a => a.source);
+
+    // filter down from output
     let result = [...shadowChars];
     for (const [i, value] of shadowIndexesMap.entries()) {
-      // let createChars = [];
-      // for (
-      //   let j = i === 0 ? 0 : shadowIndexesMap[i - 1].shadowEnd;
-      //   j < value.shadowStart;
-      //   j++
-      // ) {
-      //   createChars.push({ ...shadowChars[j] });
-      // }
-      // if (createChars.length) result.push(createChars);
+      let { mainEnd, mainStart, shadowMap, transformMap } = value;
 
-      // // end
-      // if (i === shadowIndexesMap.length - 1) {
-      //   createChars = [];
-      //   for (let j = value.shadowEnd; j < shadowChars.length; j++) {
-      //     createChars.push({ ...shadowChars[j] });
-      //   }
-      //   if (createChars.length) result.push(createChars);
-      // }
-
-      // set shadowIndexes
-      let {
-        mainEnd,
-        mainStart,
-        source,
-        shadow,
-        shadowMap,
-        transformMap,
-      } = value;
-
-      // if moving same number of characters
-      if (source.length === shadow.length) {
+      if (shadowMap || transformMap) {
+        (shadowMap || []).forEach(({ main, shadow }) => {
+          if (mainChars[main]) {
+            mainChars[main].shadowIndex = shadow;
+            result[shadow] = undefined;
+          } else {
+            console.error(value);
+          }
+        });
+        (transformMap || []).forEach(({ main, shadow, cMain, cShadow }) => {
+          mainChars[main].transform = { shadow, cMain, cShadow };
+          result[shadow] = undefined;
+        });
+      } else {
         let inc = 0;
         while (mainStart + inc < mainEnd) {
-          mainChars[mainStart + inc].shadowIndex = value.shadowStart + inc;
+          if (mainChars[mainStart + inc].shadowIndex === undefined) {
+            mainChars[mainStart + inc].shadowIndex = value.shadowStart + inc;
+          } else if (!mainChars[mainStart + inc].shadows) {
+            mainChars[mainStart + inc].shadows = [value.shadowStart + inc];
+          } else {
+            mainChars[mainStart + inc].shadows.push(value.shadowStart + inc);
+          }
           result[value.shadowStart + inc] = undefined;
           inc++;
-        }
-      } else {
-        if (shadowMap) {
-          shadowMap.forEach(({ main, shadow }) => {
-            if (mainChars[main]) {
-              mainChars[main].shadowIndex = shadow;
-              result[shadow] = undefined;
-            } else {
-              console.error(value);
-            }
-          });
-        }
-        if (transformMap) {
-          transformMap.forEach(({ main, shadow, cMain, cShadow }) => {
-            mainChars[main].transform = { shadow, cMain, cShadow };
-            result[shadow] = undefined;
-          });
         }
       }
     }
     result = result.filter(a => a);
-
-    // no diff
-    if (shadowIndexesMap.length === 0) {
-      let tmp = [];
-      for (let j = 0; j < shadowChars.length; j++) {
-        tmp.push({ ...shadowChars[j] });
-      }
-      result.push(tmp);
-    }
-
-    console.log("shadowIndexesMap");
-    console.log(shadowIndexesMap);
     return result;
   })();
 }

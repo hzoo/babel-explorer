@@ -37,9 +37,10 @@ const profile = (
   </section>
 );
 `.trim();
-// let SOURCE = `let a,b = 1, c = <a></a>;`;
-// let SOURCE = `[1,2,3]`.trim();
-// let SOURCE = `let a = {"background":{"persistent":true}, "a": [1,2,3, {a: 4}]};`;
+// SOURCE = `<b c={1}></b>;`;
+// SOURCE = `forEach(({ shadow }) => {});`.trim();
+// SOURCE = `[1,2,3]`.trim();
+// SOURCE = `let a = {"background":{"persistent":true}, "a": [1,2,3, {a: 4}]};`;
 let CONFIG = [
   {
     presets: [

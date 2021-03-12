@@ -26,12 +26,11 @@ export default declare((api, opts) => {
         if (!isBlockScoped(node)) return;
         path.traverse({
           Identifier(path) {
-            if (!path.node.originalLoc)
-              path.node.originalLoc = {
-                type: path.node.type,
-                start: path.node.start,
-                end: path.node.end,
+            if (!path.node._originalLoc) {
+              path.node._originalLoc = {
+                ...t.cloneNode(path.node, true),
               };
+            }
           },
         });
         convertBlockScopedToVar(path, null, parent, scope, true);
