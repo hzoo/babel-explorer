@@ -49,6 +49,7 @@ export function Editor({
       editorDidMount={editor => {
         // handle whitespace
         // https://github.com/coderaiser/cm-show-invisibles
+        let Count = 0;
         editor.addOverlay({
           name: "invisibles",
           token: function nextToken(stream) {
