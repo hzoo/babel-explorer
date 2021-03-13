@@ -8,6 +8,7 @@ import AST from "./AST";
 import { Editor } from "./Editor";
 import { processOptions } from "../standalone";
 import { gzipSize } from "../gzip";
+import makeShadowMap from "../shadowMap";
 
 window.babel = Babel;
 
@@ -166,354 +167,6 @@ function markNodeFromIndex(cm, type, data) {
   cm.doc.markText(cm.posFromIndex(start), cm.posFromIndex(end), {
     css: data.css || `background: ${color}`,
   });
-}
-
-function shadowMapBasedOnType(node, source, code) {
-  if (!node.type) return;
-
-  // 1_000 to 1000
-  if (
-    node.type === "NumericLiteral" &&
-    node?._sourceNode?.extra?.raw?.includes("_")
-  ) {
-    let original = node._sourceNode.extra.raw;
-    let shadowMap = [];
-    let index = -1;
-    for (let i = 0; i < original.length; i++) {
-      if (original[i] !== "_") {
-        index++;
-        shadowMap.push({
-          main: node._sourceNode.start + i,
-          shadow: node.start + index,
-        });
-      }
-    }
-    return { shadowMap };
-    // "1  ;" to "1;"
-  } else if (node.type === "ExpressionStatement") {
-    if (source[node._sourceNode.end - 1] !== ";" || code[node.end - 1] !== ";")
-      return -1;
-    return {
-      mainStart: node._sourceNode.end - 1,
-      mainEnd: node._sourceNode.end,
-      shadowStart: node.end - 1,
-      shadowEnd: node.end,
-      shadowMap: [{ main: node._sourceNode.end - 1, shadow: node.end - 1 }],
-    };
-  } else if (node._sourceNode.type === "JSXAttribute") {
-    // <a b="1"></a> -> _jsx("a", {b: "1"})
-    return {
-      transformMap: [
-        {
-          main:
-            node?._sourceNode?.name.end +
-            source
-              .slice(
-                node?._sourceNode?.name.end,
-                node?._sourceNode?.value.start
-              )
-              .indexOf("="),
-          shadow:
-            node.key.end +
-            code.slice(node.key.end, node.value.start).indexOf(":"),
-          cMain: "=",
-          cShadow: ":",
-        },
-      ],
-    };
-  } else if (node._sourceNode.type === "JSXIdentifier") {
-    return {
-      shadowMap: [
-        ...Array(node._sourceNode.end - node._sourceNode.start).keys(),
-      ].map(main => ({
-        main: main + node._sourceNode.start,
-        shadow: main + node.start + 1,
-      })),
-    };
-  } else if (node._sourceNode.type === "JSXText") {
-    let newStart = node.start + 1;
-    let newEnd = node.end - 1;
-    return {
-      shadowStart: newStart,
-      shadowEnd: newEnd,
-      shadowMap: [
-        ...Array(node._sourceNode.end - node._sourceNode.start).keys(),
-      ].map(main => ({
-        main: main + node._sourceNode.start,
-        shadow: main + newStart,
-      })),
-    };
-  } else if (node.type === "ArrayExpression") {
-    let shadowMap = [
-      { main: node?._sourceNode?.start, shadow: node.start },
-      {
-        main: node?._sourceNode?.end - 1,
-        shadow: node.end - 1,
-      },
-    ];
-    node.elements.forEach((element, i) => {
-      if (i < node?._sourceNode?.elements.length - 1) {
-        if (node?._sourceNode?.elements[i + 1] === null) {
-          // TODO: sparse arrays
-          throw new Error("TODO: doesn't handle sparse arrays [1,,2] yet");
-        }
-        shadowMap.push({
-          main:
-            node?._sourceNode?.elements[i].end +
-            source
-              .slice(
-                node?._sourceNode?.elements[i].end,
-                node?._sourceNode?.elements[i + 1]?.start
-              )
-              .indexOf(","),
-          shadow:
-            node.elements[i].end +
-            code
-              .slice(node.elements[i].end, node.elements[i + 1]?.start)
-              .indexOf(","),
-        });
-      }
-    });
-    // TODO: account for trailing comma? bug with .extra not reset?
-    // if (
-    //   node?.extra?.trailingComma ||
-    //   node?._sourceNode?.extra?.trailingComma
-    // ) {
-    //   shadowMap.push({
-    //     main: node?._sourceNode?.extra?.trailingComma,
-    //     shadow: node?.extra?.trailingComma,
-    //   });
-    // }
-    return {
-      shadowMap,
-    };
-  } else if (node.type === "BlockStatement") {
-    let shadowMap = [
-      { main: node?._sourceNode?.start, shadow: node.start },
-      { main: node?._sourceNode?.end - 1, shadow: node.end - 1 },
-    ];
-    return {
-      shadowMap,
-    };
-  } else if (node.type === "ObjectExpression") {
-    let shadowMap = [
-      { main: node?._sourceNode?.start, shadow: node.start },
-      { main: node?._sourceNode?.end - 1, shadow: node.end - 1 },
-    ];
-    node.properties.forEach((element, i) => {
-      shadowMap.push({
-        main:
-          node?._sourceNode?.properties[i].key.end +
-          source
-            .slice(
-              node?._sourceNode?.properties[i].key.end,
-              node?._sourceNode?.properties[i].value.start
-            )
-            .indexOf(":"),
-        shadow:
-          node.properties[i].key.end +
-          code
-            .slice(node.properties[i].key.end, node.properties[i].value.start)
-            .indexOf(":"),
-      });
-      if (i < node.properties.length - 1) {
-        shadowMap.push({
-          main:
-            node?._sourceNode?.properties[i].value.end +
-            source
-              .slice(
-                node?._sourceNode?.properties[i].value.end,
-                node?._sourceNode?.properties[i + 1].key.start
-              )
-              .indexOf(","),
-          shadow:
-            node.properties[i].value.end +
-            code
-              .slice(
-                node.properties[i].value.end,
-                node.properties[i + 1].key.start
-              )
-              .indexOf(","),
-        });
-      }
-    });
-    return {
-      shadowMap,
-    };
-  } else if (node._sourceNode.type === "VariableDeclaration") {
-    let shadowMap = [];
-    let transformMap = [];
-
-    // const -> let/var
-    node._sourceNode.kind.split("").forEach((main, i) => {
-      // if (i < node.kind.length) {
-      let inc = Math.min(node.kind.length - 1, i);
-      transformMap.push({
-        main: node._sourceNode.start + i,
-        cMain: main,
-        shadow: node.start + inc,
-        cShadow: node.kind[i] || "",
-      });
-      // }
-    });
-
-    // var a = 1, b = 2
-    // get the = and ,
-    let oDeclarations = node?._sourceNode?.declarations;
-    let nDeclarations = node.declarations;
-    if (oDeclarations?.length === nDeclarations.length) {
-      nDeclarations.forEach((element, i) => {
-        if (nDeclarations[i].init) {
-          shadowMap.push({
-            ...(oDeclarations
-              ? {
-                  main:
-                    oDeclarations[i].id.end +
-                    source
-                      .slice(
-                        oDeclarations[i].id.end,
-                        oDeclarations[i].init.start
-                      )
-                      .indexOf("="),
-                }
-              : {}),
-            shadow:
-              nDeclarations[i].id.end +
-              code
-                .slice(nDeclarations[i].id.end, nDeclarations[i].init.start)
-                .indexOf("="),
-          });
-        }
-        if (i < nDeclarations.length - 1) {
-          let beforeComma = nDeclarations[i].init ? "init" : "id";
-          shadowMap.push({
-            ...(oDeclarations
-              ? {
-                  main:
-                    oDeclarations[i][beforeComma].end +
-                    source
-                      .slice(
-                        oDeclarations[i][beforeComma].end,
-                        oDeclarations[i + 1].id.start
-                      )
-                      .indexOf(","),
-                }
-              : {}),
-            shadow:
-              nDeclarations[i][beforeComma].end +
-              code
-                .slice(
-                  nDeclarations[i][beforeComma].end,
-                  nDeclarations[i + 1].id.start
-                )
-                .indexOf(","),
-          });
-        }
-      });
-    }
-
-    if (
-      source[node._sourceNode.end - 1] === ";" &&
-      code[node.end - 1] === ";"
-    ) {
-      shadowMap.push({ main: node._sourceNode.end - 1, shadow: node.end - 1 });
-    }
-    return {
-      shadowMap,
-      transformMap,
-    };
-  } else if (node.type === "LogicalExpression") {
-    return {
-      shadowMap: [...Array(node.operator.length)].map((_, i) => {
-        return {
-          main:
-            node?._sourceNode?.type === "LogicalExpression" &&
-            node._sourceNode.left.end +
-              source
-                .slice(node._sourceNode.left.end, node._sourceNode.right.start)
-                .indexOf(node._sourceNode.operator) +
-              i,
-          shadow:
-            node.left.end +
-            code.slice(node.left.end, node.right.start).indexOf(node.operator) +
-            i,
-        };
-      }),
-    };
-  } else if (node.type === "AssignmentExpression") {
-    return {
-      shadowMap: [...Array(node.operator.length)].map((_, i) => {
-        return {
-          main:
-            node?._sourceNode?.type === "AssignmentExpression" &&
-            node._sourceNode.left.end +
-              source
-                .slice(node._sourceNode.left.end, node._sourceNode.right.start)
-                .indexOf(node._sourceNode.operator) +
-              i,
-          shadow:
-            node.left.end +
-            code.slice(node.left.end, node.right.start).indexOf(node.operator) +
-            i,
-        };
-      }),
-    };
-  } else if (node.type === "BinaryExpression") {
-    return {
-      shadowMap: [...Array(node.operator.length)].map((_, i) => {
-        return {
-          main:
-            node?._sourceNode?.type === "BinaryExpression" &&
-            node._sourceNode.left.end +
-              source
-                .slice(node._sourceNode.left.end, node._sourceNode.right.start)
-                .indexOf(node._sourceNode.operator) +
-              i,
-          shadow:
-            node.left.end +
-            code.slice(node.left.end, node.right.start).indexOf(node.operator) +
-            i,
-        };
-      }),
-    };
-  } else if (node.type === "MemberExpression") {
-    // a.b
-    // TODO: a[b]
-    return {
-      shadowMap: [
-        {
-          main:
-            node?._sourceNode?.type === "MemberExpression" &&
-            node._sourceNode.object.end +
-              source
-                .slice(
-                  node._sourceNode.object.end,
-                  node._sourceNode.property.start
-                )
-                .indexOf("."),
-          shadow:
-            node.object.end +
-            code.slice(node.object.end, node.property.start).indexOf("."),
-        },
-      ],
-    };
-  } else if (
-    // same type
-    // preventing something like unhandled node (ObjectPattern -> Identifier)
-    node.type === node._sourceNode.type &&
-    (node.type === "Identifier" ||
-      node.type === "StringLiteral" ||
-      node.type === "BooleanLiteral" ||
-      node.type === "NullLiteral" ||
-      node.type === "NumericLiteral")
-  ) {
-    return;
-  } else {
-    console.error(
-      `unsupported! original: ${node._sourceNode.type}, type: ${node.type}`
-    );
-    return -1;
-  }
 }
 
 function CompiledOutput({
@@ -692,12 +345,12 @@ function CompiledOutput({
       });
 
       traverseAST(ast, node => {
-        let map = shadowMapBasedOnType(node, source, code);
+        let map = makeShadowMap(node, source, code);
         if (map !== -1) {
           shadowIndexesMap.push({
             ...(node._sourceNode.start !== undefined
               ? {
-                  type: node._sourceNode.type,
+                  sourceType: node._sourceNode.type,
                   mainStart: node._sourceNode.start,
                   mainEnd: node._sourceNode.end,
                   source: source.slice(
@@ -706,9 +359,10 @@ function CompiledOutput({
                   ),
                 }
               : {}),
-            // shadow: code.slice(node.start, node.end),
+            type: node.type,
             shadowStart: node.start,
             shadowEnd: node.end,
+            // shadow: code.slice(node.start, node.end),
             ...map,
           });
         }
@@ -1370,7 +1024,11 @@ function initialize(canvas, mainText, shadowText, shadowIndexesMap) {
             setShadows(mainChars, main, shadow);
             result[shadow] = undefined;
           } else {
-            console.error(`mainChars[main] undefined: ${value}`);
+            if (main !== false) {
+              console.error(
+                `mainChars[main] undefined: ${JSON.stringify(value)}`
+              );
+            }
           }
         });
         (transformMap || []).forEach(({ main, shadow, cMain, cShadow }) => {
