@@ -764,7 +764,7 @@ function createRenderer(canvas) {
   ctx.textBaseline = "top";
   ctx.font = "1em Operator Mono SSm, monospace";
   const metrics = ctx.measureText("m");
-  // console.log(metrics);
+  const lineHeight = metrics.actualBoundingBoxDescent * 1.4;
 
   const maxWidth = 700;
   function computePositions(chars) {
@@ -774,7 +774,7 @@ function createRenderer(canvas) {
       char.y = y;
       if (char.c === "\n" || char.x > maxWidth) {
         x = 0;
-        y += metrics.fontBoundingBoxDescent + 1;
+        y += lineHeight;
       } else {
         x += metrics.width;
       }
@@ -789,7 +789,7 @@ function createRenderer(canvas) {
           char.x < x &&
           char.y < y &&
           x < char.x + metrics.width &&
-          y < char.y + metrics.fontBoundingBoxDescent + 1
+          y < char.y + lineHeight
         ) {
           return i;
         }
@@ -808,7 +808,7 @@ function createRenderer(canvas) {
         if (char.bgStyle) {
           ctx.save();
           ctx.fillStyle = char.bgStyle;
-          ctx.fillRect(x, y, metrics.width, 18);
+          ctx.fillRect(x, y, metrics.width, lineHeight);
           ctx.restore();
         }
         ctx.fillStyle = char.fillStyle || "black";
@@ -833,6 +833,7 @@ function initialize(canvas, mainText, shadowText, shadowIndexesMap) {
 
   const Animator = (function () {
     const renderFrame = (function () {
+      // straight from https://easings.net/#easeInOutCubic
       function easeInOutCubic(x) {
         return x < 0.5 ? 4 * x * x * x : 1 - Math.pow(-2 * x + 2, 3) / 2;
       }
@@ -906,23 +907,29 @@ function initialize(canvas, mainText, shadowText, shadowIndexesMap) {
     let target = 0,
       rate,
       slowMode;
-
     let t = 0;
-    requestAnimationFrame(timestamp => {
-      (function frame(prevTimestamp, timestamp) {
-        if (Math.abs(target - t) > 0.01) {
-          t +=
-            ((target - t) / (timestamp - prevTimestamp)) *
-            (slowMode ? rate / 4 : rate);
 
-          renderFrame(t);
-        } else {
-          // FIXME: stop animation
-        }
+    let animationId = 0;
+    function startAnimation() {
+      if (animationId !== 0) return;
+      animationId = requestAnimationFrame(timestamp => {
+        (function frame(prevTimestamp, timestamp) {
+          if (Math.abs(target - t) > 0.01) {
+            t +=
+              ((target - t) / (timestamp - prevTimestamp)) *
+              (slowMode ? rate / 4 : rate);
+            renderFrame(t);
 
-        requestAnimationFrame(newTimestamp => frame(timestamp, newTimestamp));
-      })(timestamp - 20, timestamp);
-    });
+            animationId = requestAnimationFrame(newTimestamp =>
+              frame(timestamp, newTimestamp)
+            );
+          } else {
+            // stop animation
+            animationId = 0;
+          }
+        })(timestamp - 20, timestamp);
+      });
+    }
 
     return {
       get target() {
@@ -930,7 +937,8 @@ function initialize(canvas, mainText, shadowText, shadowIndexesMap) {
       },
       set target(t) {
         target = t;
-        // FIXME: dynamically stop/start animation
+        // dynamically restart animation
+        startAnimation();
       },
       get rate() {
         return rate;
