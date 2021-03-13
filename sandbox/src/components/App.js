@@ -436,7 +436,7 @@ function CompiledOutput({
         />
       </Column>
       <FileSize>
-        {compiled?.size}b, {gzip}b{" "}
+        {/* {compiled?.size}b, {gzip}b{" "} */}
         <button onClick={() => toggleConfig(!showConfig)}>Show Config</button>
         {fileUrl ? (
           <button style={{ background: "#f5da55" }}>
@@ -860,8 +860,14 @@ function initialize(canvas, mainText, shadowText, shadowIndexesMap) {
               char.shadows.forEach(shadow => {
                 const extraIndex = shadowChars[shadow];
                 extraShadows.push({
-                  animX: animate(char.x, extraIndex.x, t),
-                  animY: animate(char.y, extraIndex.y, t),
+                  animX:
+                    t < 0.3
+                      ? animate(char.x, shadowChar.x, t)
+                      : animate(shadowChar.x, extraIndex.x, t),
+                  animY:
+                    t < 0.3
+                      ? animate(char.y, shadowChar.y, t)
+                      : animate(shadowChar.y, extraIndex.y, t),
                   bgStyle:
                     char.color && `rgba(238, 192, 255, ${animate(0.3, 1, t)})`,
                   ...extraIndex,

@@ -1,3 +1,4 @@
+// https://github.com/babel/babel/blob/main/packages/babel-parser/ast/spec.md
 const mapFunctions = {
   ArrayExpression,
   AssignmentExpression,
@@ -22,11 +23,10 @@ function MetaProperty(node, source, output) {
     shadowMap: [
       {
         main:
-          node?._sourceNode?.type === "MetaProperty" &&
           node._sourceNode.meta.end +
-            source
-              .slice(node._sourceNode.meta.end, node._sourceNode.property.start)
-              .indexOf("."),
+          source
+            .slice(node._sourceNode.meta.end, node._sourceNode.property.start)
+            .indexOf("."),
         shadow:
           node.meta.end +
           output.slice(node.meta.end, node.property.start).indexOf("."),
@@ -38,9 +38,7 @@ function MetaProperty(node, source, output) {
 function SpreadElement(node, source, output) {
   let shadowMap = [...Array(3)].map((_, i) => {
     return {
-      main:
-        node?._sourceNode?.type === "SpreadElement" &&
-        node._sourceNode.start + i,
+      main: node._sourceNode.start + i,
       shadow: node.start + i,
     };
   });
@@ -58,17 +56,15 @@ function SpreadElement(node, source, output) {
 function RegExpLiteral(node, source, output) {
   let shadowMap = [
     {
-      main:
-        node?._sourceNode?.type === "RegExpLiteral" && node._sourceNode.start,
+      main: node._sourceNode.start,
       shadow: node.start,
     },
     {
       main:
-        node?._sourceNode?.type === "RegExpLiteral" &&
         node._sourceNode.start +
-          source
-            .slice(node._sourceNode.start, node._sourceNode.end)
-            .lastIndexOf("/"),
+        source
+          .slice(node._sourceNode.start, node._sourceNode.end)
+          .lastIndexOf("/"),
       shadow: node.start + output.slice(node.start, node.end).lastIndexOf("/"),
     },
   ];
@@ -106,9 +102,7 @@ function ExpressionStatement(node, source, output) {
     shadowMap: [
       {
         main:
-          node?._sourceNode?.type === "ExpressionStatement" &&
-          source[node._sourceNode.end - 1] === ";" &&
-          node._sourceNode.end - 1,
+          source[node._sourceNode.end - 1] === ";" && node._sourceNode.end - 1,
         shadow: output[node.end - 1] === ";" && node.end - 1,
       },
     ],
@@ -167,12 +161,11 @@ function UnaryExpression(node, source, output) {
     shadowMap: [...Array(node.operator.length)].map((_, i) => {
       return {
         main:
-          node?._sourceNode?.type === "UnaryExpression" &&
           node._sourceNode.start +
-            source
-              .slice(node._sourceNode.start, node._sourceNode.argument.start)
-              .indexOf(node._sourceNode.operator) +
-            i,
+          source
+            .slice(node._sourceNode.start, node._sourceNode.argument.start)
+            .indexOf(node._sourceNode.operator) +
+          i,
         shadow:
           node.start +
           output.slice(node.start, node.argument.start).indexOf(node.operator) +
@@ -185,19 +178,17 @@ function UpdateExpression(node, source, output) {
   return {
     shadowMap: [...Array(node.operator.length)].map((_, i) => {
       return {
-        main:
-          node?._sourceNode?.type === "UpdateExpression" &&
-          node._sourceNode.prefix
-            ? node._sourceNode.start +
-              source
-                .slice(node._sourceNode.start, node._sourceNode.argument.start)
-                .indexOf(node._sourceNode.operator) +
-              i
-            : node._sourceNode.argument.end +
-              source
-                .slice(node._sourceNode.argument.end, node._sourceNode.end)
-                .indexOf(node._sourceNode.operator) +
-              i,
+        main: node._sourceNode.prefix
+          ? node._sourceNode.start +
+            source
+              .slice(node._sourceNode.start, node._sourceNode.argument.start)
+              .indexOf(node._sourceNode.operator) +
+            i
+          : node._sourceNode.argument.end +
+            source
+              .slice(node._sourceNode.argument.end, node._sourceNode.end)
+              .indexOf(node._sourceNode.operator) +
+            i,
         shadow: node._sourceNode.prefix
           ? node.start +
             output
@@ -213,26 +204,55 @@ function UpdateExpression(node, source, output) {
 }
 
 // a.b
-// TODO: a[b]
+// a[b]
 function MemberExpression(node, source, output) {
-  return {
-    shadowMap: [
-      {
-        main:
-          node?._sourceNode?.type === "MemberExpression" &&
-          node._sourceNode.object.end +
+  if (!node.computed) {
+    return {
+      shadowMap: [
+        {
+          main:
+            node._sourceNode.object.end +
             source
               .slice(
                 node._sourceNode.object.end,
                 node._sourceNode.property.start
               )
               .indexOf("."),
-        shadow:
-          node.object.end +
-          output.slice(node.object.end, node.property.start).indexOf("."),
-      },
-    ],
-  };
+          shadow:
+            node.object.end +
+            output.slice(node.object.end, node.property.start).indexOf("."),
+        },
+      ],
+    };
+  } else {
+    return {
+      shadowMap: [
+        {
+          main:
+            node._sourceNode.object.end +
+            source
+              .slice(
+                node._sourceNode.object.end,
+                node._sourceNode.property.start
+              )
+              .indexOf("["),
+          shadow:
+            node.object.end +
+            output.slice(node.object.end, node.property.start).indexOf("["),
+        },
+        {
+          main:
+            node._sourceNode.property.end +
+            source
+              .slice(node._sourceNode.property.end, node._sourceNode.end)
+              .indexOf("]"),
+          shadow:
+            node.property.end +
+            output.slice(node.property.end, node.end).indexOf("]"),
+        },
+      ],
+    };
+  }
 }
 
 function BinaryExpression(node, source, output) {
@@ -240,12 +260,11 @@ function BinaryExpression(node, source, output) {
     shadowMap: [...Array(node.operator.length)].map((_, i) => {
       return {
         main:
-          node?._sourceNode?.type === "BinaryExpression" &&
           node._sourceNode.left.end +
-            source
-              .slice(node._sourceNode.left.end, node._sourceNode.right.start)
-              .indexOf(node._sourceNode.operator) +
-            i,
+          source
+            .slice(node._sourceNode.left.end, node._sourceNode.right.start)
+            .indexOf(node._sourceNode.operator) +
+          i,
         shadow:
           node.left.end +
           output.slice(node.left.end, node.right.start).indexOf(node.operator) +
@@ -260,12 +279,11 @@ function LogicalExpression(node, source, output) {
     shadowMap: [...Array(node.operator.length)].map((_, i) => {
       return {
         main:
-          node?._sourceNode?.type === "LogicalExpression" &&
           node._sourceNode.left.end +
-            source
-              .slice(node._sourceNode.left.end, node._sourceNode.right.start)
-              .indexOf(node._sourceNode.operator) +
-            i,
+          source
+            .slice(node._sourceNode.left.end, node._sourceNode.right.start)
+            .indexOf(node._sourceNode.operator) +
+          i,
         shadow:
           node.left.end +
           output.slice(node.left.end, node.right.start).indexOf(node.operator) +
@@ -285,12 +303,11 @@ function AssignmentExpression(node, source, output) {
     shadowMap: [...Array(node.operator.length)].map((_, i) => {
       return {
         main:
-          node?._sourceNode?.type === "AssignmentExpression" &&
           node._sourceNode.left.end +
-            source
-              .slice(node._sourceNode.left.end, node._sourceNode.right.start)
-              .indexOf(node._sourceNode.operator) +
-            i,
+          source
+            .slice(node._sourceNode.left.end, node._sourceNode.right.start)
+            .indexOf(node._sourceNode.operator) +
+          i,
         shadow:
           node.left.end +
           output.slice(node.left.end, node.right.start).indexOf(node.operator) +
@@ -302,17 +319,17 @@ function AssignmentExpression(node, source, output) {
 
 function ObjectExpression(node, source, output) {
   let shadowMap = [
-    { main: node?._sourceNode?.start, shadow: node.start },
-    { main: node?._sourceNode?.end - 1, shadow: node.end - 1 },
+    { main: node._sourceNode.start, shadow: node.start },
+    { main: node._sourceNode.end - 1, shadow: node.end - 1 },
   ];
   node.properties.forEach((element, i) => {
     shadowMap.push({
       main:
-        node?._sourceNode?.properties[i].key.end +
+        node._sourceNode.properties[i].key.end +
         source
           .slice(
-            node?._sourceNode?.properties[i].key.end,
-            node?._sourceNode?.properties[i].value.start
+            node._sourceNode.properties[i].key.end,
+            node._sourceNode.properties[i].value.start
           )
           .indexOf(":"),
       shadow:
@@ -324,11 +341,11 @@ function ObjectExpression(node, source, output) {
     if (i < node.properties.length - 1) {
       shadowMap.push({
         main:
-          node?._sourceNode?.properties[i].value.end +
+          node._sourceNode.properties[i].value.end +
           source
             .slice(
-              node?._sourceNode?.properties[i].value.end,
-              node?._sourceNode?.properties[i + 1].key.start
+              node._sourceNode.properties[i].value.end,
+              node._sourceNode.properties[i + 1].key.start
             )
             .indexOf(","),
         shadow:
@@ -349,8 +366,8 @@ function ObjectExpression(node, source, output) {
 
 function BlockStatement(node, source, output) {
   let shadowMap = [
-    { main: node?._sourceNode?.start, shadow: node.start },
-    { main: node?._sourceNode?.end - 1, shadow: node.end - 1 },
+    { main: node._sourceNode.start, shadow: node.start },
+    { main: node._sourceNode.end - 1, shadow: node.end - 1 },
   ];
   return {
     shadowMap,
@@ -360,20 +377,20 @@ function BlockStatement(node, source, output) {
 function SequenceExpression(node, source, output) {
   let shadowMap = [];
   node.expressions.forEach((element, i) => {
-    if (i < node?._sourceNode?.expressions.length - 1) {
+    if (i < node._sourceNode.expressions.length - 1) {
       shadowMap.push({
         main:
-          node?._sourceNode?.expressions[i].end +
+          node._sourceNode.expressions[i].end +
           source
             .slice(
-              node?._sourceNode?.expressions[i].end,
-              node?._sourceNode?.expressions[i + 1]?.start
+              node._sourceNode.expressions[i].end,
+              node._sourceNode.expressions[i + 1].start
             )
             .indexOf(","),
         shadow:
           node.expressions[i].end +
           output
-            .slice(node.expressions[i].end, node.expressions[i + 1]?.start)
+            .slice(node.expressions[i].end, node.expressions[i + 1].start)
             .indexOf(","),
       });
     }
@@ -385,43 +402,43 @@ function SequenceExpression(node, source, output) {
 
 function ArrayExpression(node, source, output) {
   let shadowMap = [
-    { main: node?._sourceNode?.start, shadow: node.start },
+    { main: node._sourceNode.start, shadow: node.start },
     {
-      main: node?._sourceNode?.end - 1,
+      main: node._sourceNode.end - 1,
       shadow: node.end - 1,
     },
   ];
   node.elements.forEach((element, i) => {
-    if (i < node?._sourceNode?.elements.length - 1) {
-      if (node?._sourceNode?.elements[i + 1] === null) {
+    if (i < node._sourceNode.elements.length - 1) {
+      if (node._sourceNode.elements[i + 1] === null) {
         // TODO: sparse arrays
         throw new Error("TODO: doesn't handle sparse arrays [1,,2] yet");
       }
       shadowMap.push({
         main:
-          node?._sourceNode?.elements[i].end +
+          node._sourceNode.elements[i].end +
           source
             .slice(
-              node?._sourceNode?.elements[i].end,
-              node?._sourceNode?.elements[i + 1]?.start
+              node._sourceNode.elements[i].end,
+              node._sourceNode.elements[i + 1].start
             )
             .indexOf(","),
         shadow:
           node.elements[i].end +
           output
-            .slice(node.elements[i].end, node.elements[i + 1]?.start)
+            .slice(node.elements[i].end, node.elements[i + 1].start)
             .indexOf(","),
       });
     }
   });
   // TODO: account for trailing comma? bug with .extra not reset?
   // if (
-  //   node?.extra?.trailingComma ||
-  //   node?._sourceNode?.extra?.trailingComma
+  //   node.extra.trailingComma ||
+  //   node._sourceNode.extra.trailingComma
   // ) {
   //   shadowMap.push({
-  //     main: node?._sourceNode?.extra?.trailingComma,
-  //     shadow: node?.extra?.trailingComma,
+  //     main: node._sourceNode.extra.trailingComma,
+  //     shadow: node.extra.trailingComma,
   //   });
   // }
   return {
@@ -483,7 +500,7 @@ export default function makeShadowMap(node, source, output) {
   if (!node.type) return;
 
   let fn = mapFunctions[node.type];
-  if (fn) {
+  if (fn && node._sourceNode.type === node.type) {
     return fn(node, source, output);
   }
 
