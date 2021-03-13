@@ -325,18 +325,20 @@ function ObjectExpression(node, source, output) {
   node.properties.forEach((element, i) => {
     shadowMap.push({
       main:
+        !node._sourceNode.properties[i].shorthand &&
         node._sourceNode.properties[i].key.end +
-        source
-          .slice(
-            node._sourceNode.properties[i].key.end,
-            node._sourceNode.properties[i].value.start
-          )
-          .indexOf(":"),
+          source
+            .slice(
+              node._sourceNode.properties[i].key.end,
+              node._sourceNode.properties[i].value.start
+            )
+            .indexOf(":"),
       shadow:
+        !node.properties[i].shorthand &&
         node.properties[i].key.end +
-        output
-          .slice(node.properties[i].key.end, node.properties[i].value.start)
-          .indexOf(":"),
+          output
+            .slice(node.properties[i].key.end, node.properties[i].value.start)
+            .indexOf(":"),
     });
     if (i < node.properties.length - 1) {
       shadowMap.push({

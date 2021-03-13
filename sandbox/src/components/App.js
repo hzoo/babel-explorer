@@ -286,11 +286,11 @@ function CompiledOutput({
         processOptions(config, customPlugin)
       );
       // prettify?
-      // code = prettier.format(code, {
-      //   parser() {
-      //     return Babel.parse(code, processOptions(config, customPlugin));
-      //   },
-      // });
+      code = prettier.format(code, {
+        parser() {
+          return ast;
+        },
+      });
       // reparse the compiled output to get loc data
       let newAST = Babel.parse(code, processOptions(config, customPlugin));
       window.sourceEditor.doc.getAllMarks().forEach(mark => mark.clear());
