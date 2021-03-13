@@ -8,11 +8,47 @@ const mapFunctions = {
   JSXAttribute,
   LogicalExpression,
   MemberExpression,
+  MetaProperty,
   ObjectExpression,
+  SequenceExpression,
+  SpreadElement,
   RegExpLiteral,
   UnaryExpression,
   UpdateExpression,
 };
+
+function MetaProperty(node, source, output) {
+  return {
+    shadowMap: [
+      {
+        main:
+          node?._sourceNode?.type === "MetaProperty" &&
+          node._sourceNode.meta.end +
+            source
+              .slice(node._sourceNode.meta.end, node._sourceNode.property.start)
+              .indexOf("."),
+        shadow:
+          node.meta.end +
+          output.slice(node.meta.end, node.property.start).indexOf("."),
+      },
+    ],
+  };
+}
+
+function SpreadElement(node, source, output) {
+  let shadowMap = [...Array(3)].map((_, i) => {
+    return {
+      main:
+        node?._sourceNode?.type === "SpreadElement" &&
+        node._sourceNode.start + i,
+      shadow: node.start + i,
+    };
+  });
+
+  return {
+    shadowMap,
+  };
+}
 
 // TODO: new regex
 // /./s;
@@ -321,6 +357,32 @@ function BlockStatement(node, source, output) {
   };
 }
 
+function SequenceExpression(node, source, output) {
+  let shadowMap = [];
+  node.expressions.forEach((element, i) => {
+    if (i < node?._sourceNode?.expressions.length - 1) {
+      shadowMap.push({
+        main:
+          node?._sourceNode?.expressions[i].end +
+          source
+            .slice(
+              node?._sourceNode?.expressions[i].end,
+              node?._sourceNode?.expressions[i + 1]?.start
+            )
+            .indexOf(","),
+        shadow:
+          node.expressions[i].end +
+          output
+            .slice(node.expressions[i].end, node.expressions[i + 1]?.start)
+            .indexOf(","),
+      });
+    }
+  });
+  return {
+    shadowMap,
+  };
+}
+
 function ArrayExpression(node, source, output) {
   let shadowMap = [
     { main: node?._sourceNode?.start, shadow: node.start },
@@ -546,7 +608,14 @@ export default function makeShadowMap(node, source, output) {
       node.type === "StringLiteral" ||
       node.type === "BooleanLiteral" ||
       node.type === "NullLiteral" ||
-      node.type === "NumericLiteral")
+      node.type === "NumericLiteral" ||
+      node.type === "BigIntLiteral" ||
+      node.type === "DecimalLiteral" ||
+      node.type === "DebuggerStatement" ||
+      node.type === "Directive" ||
+      node.type === "Import" ||
+      node.type === "ThisExpression" ||
+      node.type === "EmptyStatement")
   ) {
     return;
   } else {
