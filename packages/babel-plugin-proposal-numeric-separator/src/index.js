@@ -10,15 +10,7 @@ import syntaxNumericSeparator from "@babel/plugin-syntax-numeric-separator";
 function remover({ node }: NodePath<BigIntLiteral | NumericLiteral>) {
   const { extra } = node;
   if (extra?.raw?.includes("_")) {
-    if (!node._sourceNode) {
-      node._sourceNode = {
-        start: node.start,
-        end: node.end,
-        extra: {
-          raw: node.extra.raw,
-        },
-      };
-    }
+    // node: node
     extra.raw = extra.raw.replace(/_/g, "");
   }
 }

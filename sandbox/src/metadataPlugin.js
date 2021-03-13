@@ -2,6 +2,8 @@ const path = require("path");
 const BABEL_PACKAGES_REGEXP =
   path.sep === "/" ? /packages\/(.*)/ : /packages\\(.*)/;
 
+const { addNamespace } = require("@babel/helper-module-imports");
+
 module.exports = function babelPlugin(babel) {
   const { types: t, template } = babel;
 
@@ -49,6 +51,24 @@ module.exports = function babelPlugin(babel) {
       AssignmentExpression(path, state) {
         const comment = getMetaComment(path);
         if (!comment) return;
+
+        const pathInScope = path.scope.hasBinding("t");
+        let babelTypesRef = t.identifier("t");
+        if (!pathInScope) {
+          babelTypesRef = state.addBabelTypes;
+          if (babelTypesRef) {
+            babelTypesRef = t.cloneNode(babelTypesRef);
+          } else {
+            babelTypesRef = state.addBabelTypes = addNamespace(
+              path,
+              "@babel/types",
+              {
+                nameHint: "t",
+              }
+            );
+          }
+        }
+
         const props = [
           t.objectProperty(
             t.identifier("name"),
@@ -62,7 +82,7 @@ module.exports = function babelPlugin(babel) {
           ),
           t.spreadElement(
             t.callExpression(
-              t.memberExpression(t.identifier("t"), t.identifier("cloneNode")),
+              t.memberExpression(babelTypesRef, t.identifier("cloneNode")),
               [comment, t.booleanLiteral(true)]
             )
           ),
@@ -120,14 +140,29 @@ module.exports = function babelPlugin(babel) {
               )
             ),
           ];
+
+          const pathInScope = path.scope.hasBinding("t");
+          let babelTypesRef = t.identifier("t");
+          if (!pathInScope) {
+            babelTypesRef = state.addBabelTypes;
+            if (babelTypesRef) {
+              babelTypesRef = t.cloneNode(babelTypesRef);
+            } else {
+              babelTypesRef = state.addBabelTypes = addNamespace(
+                path,
+                "@babel/types",
+                {
+                  nameHint: "t",
+                }
+              );
+            }
+          }
+
           const currentPathNode = currentPath.node;
           props.push(
             t.spreadElement(
               t.callExpression(
-                t.memberExpression(
-                  t.identifier("t"),
-                  t.identifier("cloneNode")
-                ),
+                t.memberExpression(babelTypesRef, t.identifier("cloneNode")),
                 [
                   comment
                     ? t.optionalMemberExpression(

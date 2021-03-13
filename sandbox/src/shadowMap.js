@@ -1,3 +1,65 @@
+const mapFunctions = {
+  ArrayExpression,
+  AssignmentExpression,
+  BinaryExpression,
+  BlockStatement,
+  ConditionalExpression,
+  ExpressionStatement,
+  JSXAttribute,
+  LogicalExpression,
+  MemberExpression,
+  ObjectExpression,
+  RegExpLiteral,
+  UnaryExpression,
+  UpdateExpression,
+};
+
+// TODO: new regex
+// /./s;
+// /./su;
+// /o+/y;
+// /(?<year>\d{4})-(?<month>\d{2})-(?<day>\d{2})/;
+function RegExpLiteral(node, source, output) {
+  let shadowMap = [
+    {
+      main:
+        node?._sourceNode?.type === "RegExpLiteral" && node._sourceNode.start,
+      shadow: node.start,
+    },
+    {
+      main:
+        node?._sourceNode?.type === "RegExpLiteral" &&
+        node._sourceNode.start +
+          source
+            .slice(node._sourceNode.start, node._sourceNode.end)
+            .lastIndexOf("/"),
+      shadow: node.start + output.slice(node.start, node.end).lastIndexOf("/"),
+    },
+  ];
+
+  if (node._sourceNode.pattern === node.pattern) {
+    [...Array(node.pattern.length)].forEach((_, i) => {
+      shadowMap.push({
+        main: node._sourceNode.start + 1 + i,
+        shadow: node.start + 1 + i,
+      });
+    });
+  }
+
+  if (node._sourceNode.flags === node.flags) {
+    [...Array(node.flags.length)].forEach((_, i) => {
+      shadowMap.push({
+        main: node._sourceNode.end - 1 - i,
+        shadow: node.end - 1 - i,
+      });
+    });
+  }
+
+  return {
+    shadowMap,
+  };
+}
+
 // take the ; from a;
 function ExpressionStatement(node, source, output) {
   return {
@@ -304,21 +366,6 @@ function ArrayExpression(node, source, output) {
     shadowMap,
   };
 }
-
-let mapFunctions = {
-  ArrayExpression,
-  AssignmentExpression,
-  BinaryExpression,
-  BlockStatement,
-  ConditionalExpression,
-  ExpressionStatement,
-  JSXAttribute,
-  LogicalExpression,
-  MemberExpression,
-  ObjectExpression,
-  UnaryExpression,
-  UpdateExpression,
-};
 
 // 1_000 to 1000
 function NumericSeparator_to_NumericLiteral(node) {
