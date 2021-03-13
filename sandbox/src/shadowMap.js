@@ -34,6 +34,292 @@ function JSXAttribute(node, source, output) {
   };
 }
 
+function ConditionalExpression(node, source, output) {
+  return {
+    shadowMap: [
+      {
+        main:
+          node._sourceNode.test.end +
+          source
+            .slice(node._sourceNode.test.end, node._sourceNode.consequent.start)
+            .indexOf("?"),
+        shadow:
+          node.test.end +
+          output.slice(node.test.end, node.consequent.start).indexOf("?"),
+      },
+      {
+        main:
+          node._sourceNode.consequent.end +
+          source
+            .slice(
+              node._sourceNode.consequent.end,
+              node._sourceNode.alternate.start
+            )
+            .indexOf(":"),
+        shadow:
+          node.consequent.end +
+          output.slice(node.consequent.end, node.alternate.start).indexOf(":"),
+      },
+    ],
+  };
+}
+
+function UnaryExpression(node, source, output) {
+  return {
+    shadowMap: [...Array(node.operator.length)].map((_, i) => {
+      return {
+        main:
+          node?._sourceNode?.type === "UnaryExpression" &&
+          node._sourceNode.start +
+            source
+              .slice(node._sourceNode.start, node._sourceNode.argument.start)
+              .indexOf(node._sourceNode.operator) +
+            i,
+        shadow:
+          node.start +
+          output.slice(node.start, node.argument.start).indexOf(node.operator) +
+          i,
+      };
+    }),
+  };
+}
+function UpdateExpression(node, source, output) {
+  return {
+    shadowMap: [...Array(node.operator.length)].map((_, i) => {
+      return {
+        main:
+          node?._sourceNode?.type === "UpdateExpression" &&
+          node._sourceNode.prefix
+            ? node._sourceNode.start +
+              source
+                .slice(node._sourceNode.start, node._sourceNode.argument.start)
+                .indexOf(node._sourceNode.operator) +
+              i
+            : node._sourceNode.argument.end +
+              source
+                .slice(node._sourceNode.argument.end, node._sourceNode.end)
+                .indexOf(node._sourceNode.operator) +
+              i,
+        shadow: node._sourceNode.prefix
+          ? node.start +
+            output
+              .slice(node.start, node.argument.start)
+              .indexOf(node.operator) +
+            i
+          : node.argument.end +
+            output.slice(node.argument.end, node.end).indexOf(node.operator) +
+            i,
+      };
+    }),
+  };
+}
+
+// a.b
+// TODO: a[b]
+function MemberExpression(node, source, output) {
+  return {
+    shadowMap: [
+      {
+        main:
+          node?._sourceNode?.type === "MemberExpression" &&
+          node._sourceNode.object.end +
+            source
+              .slice(
+                node._sourceNode.object.end,
+                node._sourceNode.property.start
+              )
+              .indexOf("."),
+        shadow:
+          node.object.end +
+          output.slice(node.object.end, node.property.start).indexOf("."),
+      },
+    ],
+  };
+}
+
+function BinaryExpression(node, source, output) {
+  return {
+    shadowMap: [...Array(node.operator.length)].map((_, i) => {
+      return {
+        main:
+          node?._sourceNode?.type === "BinaryExpression" &&
+          node._sourceNode.left.end +
+            source
+              .slice(node._sourceNode.left.end, node._sourceNode.right.start)
+              .indexOf(node._sourceNode.operator) +
+            i,
+        shadow:
+          node.left.end +
+          output.slice(node.left.end, node.right.start).indexOf(node.operator) +
+          i,
+      };
+    }),
+  };
+}
+
+function LogicalExpression(node, source, output) {
+  return {
+    shadowMap: [...Array(node.operator.length)].map((_, i) => {
+      return {
+        main:
+          node?._sourceNode?.type === "LogicalExpression" &&
+          node._sourceNode.left.end +
+            source
+              .slice(node._sourceNode.left.end, node._sourceNode.right.start)
+              .indexOf(node._sourceNode.operator) +
+            i,
+        shadow:
+          node.left.end +
+          output.slice(node.left.end, node.right.start).indexOf(node.operator) +
+          i,
+      };
+    }),
+  };
+}
+
+// TODO:
+// x **= y;
+// x &&= y;
+// x ||= y;
+// x ??= y;
+function AssignmentExpression(node, source, output) {
+  return {
+    shadowMap: [...Array(node.operator.length)].map((_, i) => {
+      return {
+        main:
+          node?._sourceNode?.type === "AssignmentExpression" &&
+          node._sourceNode.left.end +
+            source
+              .slice(node._sourceNode.left.end, node._sourceNode.right.start)
+              .indexOf(node._sourceNode.operator) +
+            i,
+        shadow:
+          node.left.end +
+          output.slice(node.left.end, node.right.start).indexOf(node.operator) +
+          i,
+      };
+    }),
+  };
+}
+
+function ObjectExpression(node, source, output) {
+  let shadowMap = [
+    { main: node?._sourceNode?.start, shadow: node.start },
+    { main: node?._sourceNode?.end - 1, shadow: node.end - 1 },
+  ];
+  node.properties.forEach((element, i) => {
+    shadowMap.push({
+      main:
+        node?._sourceNode?.properties[i].key.end +
+        source
+          .slice(
+            node?._sourceNode?.properties[i].key.end,
+            node?._sourceNode?.properties[i].value.start
+          )
+          .indexOf(":"),
+      shadow:
+        node.properties[i].key.end +
+        output
+          .slice(node.properties[i].key.end, node.properties[i].value.start)
+          .indexOf(":"),
+    });
+    if (i < node.properties.length - 1) {
+      shadowMap.push({
+        main:
+          node?._sourceNode?.properties[i].value.end +
+          source
+            .slice(
+              node?._sourceNode?.properties[i].value.end,
+              node?._sourceNode?.properties[i + 1].key.start
+            )
+            .indexOf(","),
+        shadow:
+          node.properties[i].value.end +
+          output
+            .slice(
+              node.properties[i].value.end,
+              node.properties[i + 1].key.start
+            )
+            .indexOf(","),
+      });
+    }
+  });
+  return {
+    shadowMap,
+  };
+}
+
+function BlockStatement(node, source, output) {
+  let shadowMap = [
+    { main: node?._sourceNode?.start, shadow: node.start },
+    { main: node?._sourceNode?.end - 1, shadow: node.end - 1 },
+  ];
+  return {
+    shadowMap,
+  };
+}
+
+function ArrayExpression(node, source, output) {
+  let shadowMap = [
+    { main: node?._sourceNode?.start, shadow: node.start },
+    {
+      main: node?._sourceNode?.end - 1,
+      shadow: node.end - 1,
+    },
+  ];
+  node.elements.forEach((element, i) => {
+    if (i < node?._sourceNode?.elements.length - 1) {
+      if (node?._sourceNode?.elements[i + 1] === null) {
+        // TODO: sparse arrays
+        throw new Error("TODO: doesn't handle sparse arrays [1,,2] yet");
+      }
+      shadowMap.push({
+        main:
+          node?._sourceNode?.elements[i].end +
+          source
+            .slice(
+              node?._sourceNode?.elements[i].end,
+              node?._sourceNode?.elements[i + 1]?.start
+            )
+            .indexOf(","),
+        shadow:
+          node.elements[i].end +
+          output
+            .slice(node.elements[i].end, node.elements[i + 1]?.start)
+            .indexOf(","),
+      });
+    }
+  });
+  // TODO: account for trailing comma? bug with .extra not reset?
+  // if (
+  //   node?.extra?.trailingComma ||
+  //   node?._sourceNode?.extra?.trailingComma
+  // ) {
+  //   shadowMap.push({
+  //     main: node?._sourceNode?.extra?.trailingComma,
+  //     shadow: node?.extra?.trailingComma,
+  //   });
+  // }
+  return {
+    shadowMap,
+  };
+}
+
+let mapFunctions = {
+  ArrayExpression,
+  AssignmentExpression,
+  BinaryExpression,
+  BlockStatement,
+  ConditionalExpression,
+  ExpressionStatement,
+  JSXAttribute,
+  LogicalExpression,
+  MemberExpression,
+  ObjectExpression,
+  UnaryExpression,
+  UpdateExpression,
+};
+
 // 1_000 to 1000
 function NumericSeparator_to_NumericLiteral(node) {
   let shadowMap = [];
@@ -87,26 +373,30 @@ function JSXIdentifier_to_StringLiteral(node) {
 export default function makeShadowMap(node, source, output) {
   if (!node.type) return;
 
+  let fn = mapFunctions[node.type];
+  if (fn) {
+    return fn(node, source, output);
+  }
+
   if (
     node.type === "NumericLiteral" &&
     node?._sourceNode?.extra?.raw?.includes("_")
   ) {
     return NumericSeparator_to_NumericLiteral(node);
-  } else if (node.type === "ExpressionStatement") {
-    return ExpressionStatement(node, source, output);
   } else if (
     node._sourceNode.type === "JSXAttribute" &&
     node.type === "ObjectProperty"
   ) {
     return JSXAttribute_to_ObjectProperty(node, source, output);
-  } else if (node.type === "JSXAttribute") {
-    return JSXAttribute(node, source, output);
   } else if (
     node._sourceNode.type === "JSXIdentifier" &&
     node.type === "StringLiteral"
   ) {
     return JSXIdentifier_to_StringLiteral(node);
-  } else if (node._sourceNode.type === "JSXText") {
+  } else if (
+    node._sourceNode.type === "JSXText" &&
+    node.type === "StringLiteral"
+  ) {
     let newStart = node.start + 1;
     let newEnd = node.end - 1;
     return {
@@ -118,103 +408,6 @@ export default function makeShadowMap(node, source, output) {
         main: main + node._sourceNode.start,
         shadow: main + newStart,
       })),
-    };
-  } else if (node.type === "ArrayExpression") {
-    let shadowMap = [
-      { main: node?._sourceNode?.start, shadow: node.start },
-      {
-        main: node?._sourceNode?.end - 1,
-        shadow: node.end - 1,
-      },
-    ];
-    node.elements.forEach((element, i) => {
-      if (i < node?._sourceNode?.elements.length - 1) {
-        if (node?._sourceNode?.elements[i + 1] === null) {
-          // TODO: sparse arrays
-          throw new Error("TODO: doesn't handle sparse arrays [1,,2] yet");
-        }
-        shadowMap.push({
-          main:
-            node?._sourceNode?.elements[i].end +
-            source
-              .slice(
-                node?._sourceNode?.elements[i].end,
-                node?._sourceNode?.elements[i + 1]?.start
-              )
-              .indexOf(","),
-          shadow:
-            node.elements[i].end +
-            output
-              .slice(node.elements[i].end, node.elements[i + 1]?.start)
-              .indexOf(","),
-        });
-      }
-    });
-    // TODO: account for trailing comma? bug with .extra not reset?
-    // if (
-    //   node?.extra?.trailingComma ||
-    //   node?._sourceNode?.extra?.trailingComma
-    // ) {
-    //   shadowMap.push({
-    //     main: node?._sourceNode?.extra?.trailingComma,
-    //     shadow: node?.extra?.trailingComma,
-    //   });
-    // }
-    return {
-      shadowMap,
-    };
-  } else if (node.type === "BlockStatement") {
-    let shadowMap = [
-      { main: node?._sourceNode?.start, shadow: node.start },
-      { main: node?._sourceNode?.end - 1, shadow: node.end - 1 },
-    ];
-    return {
-      shadowMap,
-    };
-  } else if (node.type === "ObjectExpression") {
-    let shadowMap = [
-      { main: node?._sourceNode?.start, shadow: node.start },
-      { main: node?._sourceNode?.end - 1, shadow: node.end - 1 },
-    ];
-    node.properties.forEach((element, i) => {
-      shadowMap.push({
-        main:
-          node?._sourceNode?.properties[i].key.end +
-          source
-            .slice(
-              node?._sourceNode?.properties[i].key.end,
-              node?._sourceNode?.properties[i].value.start
-            )
-            .indexOf(":"),
-        shadow:
-          node.properties[i].key.end +
-          output
-            .slice(node.properties[i].key.end, node.properties[i].value.start)
-            .indexOf(":"),
-      });
-      if (i < node.properties.length - 1) {
-        shadowMap.push({
-          main:
-            node?._sourceNode?.properties[i].value.end +
-            source
-              .slice(
-                node?._sourceNode?.properties[i].value.end,
-                node?._sourceNode?.properties[i + 1].key.start
-              )
-              .indexOf(","),
-          shadow:
-            node.properties[i].value.end +
-            output
-              .slice(
-                node.properties[i].value.end,
-                node.properties[i + 1].key.start
-              )
-              .indexOf(","),
-        });
-      }
-    });
-    return {
-      shadowMap,
     };
   } else if (node._sourceNode.type === "VariableDeclaration") {
     let shadowMap = [];
@@ -297,112 +490,6 @@ export default function makeShadowMap(node, source, output) {
     return {
       shadowMap,
       transformMap,
-    };
-  } else if (node.type === "LogicalExpression") {
-    return {
-      shadowMap: [...Array(node.operator.length)].map((_, i) => {
-        return {
-          main:
-            node?._sourceNode?.type === "LogicalExpression" &&
-            node._sourceNode.left.end +
-              source
-                .slice(node._sourceNode.left.end, node._sourceNode.right.start)
-                .indexOf(node._sourceNode.operator) +
-              i,
-          shadow:
-            node.left.end +
-            output
-              .slice(node.left.end, node.right.start)
-              .indexOf(node.operator) +
-            i,
-        };
-      }),
-    };
-  } else if (node.type === "UnaryExpression") {
-    return {
-      shadowMap: [...Array(node.operator.length)].map((_, i) => {
-        return {
-          main:
-            node?._sourceNode?.type === "UnaryExpression" &&
-            node._sourceNode.start +
-              source
-                .slice(node._sourceNode.start, node._sourceNode.argument.start)
-                .indexOf(node._sourceNode.operator) +
-              i,
-          shadow:
-            node.start +
-            output
-              .slice(node.start, node.argument.start)
-              .indexOf(node.operator) +
-            i,
-        };
-      }),
-    };
-  } else if (node.type === "AssignmentExpression") {
-    // TODO:
-    // x **= y;
-    // x &&= y;
-    // x ||= y;
-    // x ??= y;
-    return {
-      shadowMap: [...Array(node.operator.length)].map((_, i) => {
-        return {
-          main:
-            node?._sourceNode?.type === "AssignmentExpression" &&
-            node._sourceNode.left.end +
-              source
-                .slice(node._sourceNode.left.end, node._sourceNode.right.start)
-                .indexOf(node._sourceNode.operator) +
-              i,
-          shadow:
-            node.left.end +
-            output
-              .slice(node.left.end, node.right.start)
-              .indexOf(node.operator) +
-            i,
-        };
-      }),
-    };
-  } else if (node.type === "BinaryExpression") {
-    return {
-      shadowMap: [...Array(node.operator.length)].map((_, i) => {
-        return {
-          main:
-            node?._sourceNode?.type === "BinaryExpression" &&
-            node._sourceNode.left.end +
-              source
-                .slice(node._sourceNode.left.end, node._sourceNode.right.start)
-                .indexOf(node._sourceNode.operator) +
-              i,
-          shadow:
-            node.left.end +
-            output
-              .slice(node.left.end, node.right.start)
-              .indexOf(node.operator) +
-            i,
-        };
-      }),
-    };
-  } else if (node.type === "MemberExpression") {
-    // a.b
-    // TODO: a[b]
-    return {
-      shadowMap: [
-        {
-          main:
-            node?._sourceNode?.type === "MemberExpression" &&
-            node._sourceNode.object.end +
-              source
-                .slice(
-                  node._sourceNode.object.end,
-                  node._sourceNode.property.start
-                )
-                .indexOf("."),
-          shadow:
-            node.object.end +
-            output.slice(node.object.end, node.property.start).indexOf("."),
-        },
-      ],
     };
   } else if (
     // same type

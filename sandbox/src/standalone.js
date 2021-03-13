@@ -103,18 +103,21 @@ export function processOptions(options, customPlugin) {
   }
 
   const handledVisitors = [
-    "VariableDeclaration",
-    "BlockStatement",
-    "ObjectExpression",
     "ArrayExpression",
-    "ExpressionStatement",
     "AssignmentExpression",
-    "LogicalExpression",
-    "UnaryExpression",
+    "VariableDeclaration",
     "BinaryExpression",
+    "BlockStatement",
+    "ConditionalExpression",
+    "ExpressionStatement",
+    "JSXAttribute",
+    "LogicalExpression",
+    "MemberExpression",
+    "ObjectExpression",
+    "UnaryExpression",
+    "UpdateExpression",
     "Literal",
     "Identifier",
-    "MemberExpression",
   ].join("|");
 
   // TODO: test
