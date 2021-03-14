@@ -1,5 +1,5 @@
 // https://github.com/babel/babel/blob/main/packages/babel-parser/ast/spec.md
-const mapFunctions = {
+export const shadowMapFunctions = {
   ArrayExpression,
   AssignmentExpression,
   BinaryExpression,
@@ -13,10 +13,50 @@ const mapFunctions = {
   ObjectExpression,
   SequenceExpression,
   SpreadElement,
+  StringLiteral,
   RegExpLiteral,
   UnaryExpression,
   UpdateExpression,
 };
+
+// "'asdf'" -> "asdf" in ObjectProperty
+function StringLiteral(node, source, output) {
+  if (
+    node._sourceNode &&
+    source.slice(node._sourceNode.start + 1, node._sourceNode.end - 1) ===
+      output.slice(node.start, node.end)
+  ) {
+    let transformMap = [
+      {
+        main: node._sourceNode.start,
+        cMain: source[node._sourceNode.start],
+        shadow: node.start,
+        cShadow: "",
+      },
+      {
+        main: node._sourceNode.end - 1,
+        cMain: source[node._sourceNode.end - 1],
+        shadow: node.end - 1,
+        cShadow: "",
+      },
+    ];
+
+    let shadowMap = [];
+    for (let i = 1; i <= node._sourceNode.value.length; i++) {
+      shadowMap.push({
+        main: node._sourceNode.start + i,
+        cMain: source[node._sourceNode.start + i],
+        shadow: node.start + i - 1,
+        cShadow: output[node.start + i - 1],
+      });
+    }
+
+    return {
+      transformMap,
+      shadowMap,
+    };
+  }
+}
 
 function MetaProperty(node, source, output) {
   return {
@@ -361,6 +401,22 @@ function ObjectExpression(node, source, output) {
       });
     }
   });
+  let last = node.properties.length - 1;
+  let mainTrailing = source
+    .slice(node._sourceNode.properties[last].end, node._sourceNode.end)
+    .indexOf(",");
+  let shadowTrailing = output
+    .slice(node.properties[last].end, node.end)
+    .indexOf(",");
+  if (shadowTrailing !== -1) {
+    shadowMap.push({
+      main:
+        mainTrailing !== -1
+          ? mainTrailing + node._sourceNode.properties[last].end
+          : undefined,
+      shadow: shadowTrailing + node.properties[last].end,
+    });
+  }
   return {
     shadowMap,
   };
@@ -433,16 +489,22 @@ function ArrayExpression(node, source, output) {
       });
     }
   });
-  // TODO: account for trailing comma? bug with .extra not reset?
-  // if (
-  //   node.extra.trailingComma ||
-  //   node._sourceNode.extra.trailingComma
-  // ) {
-  //   shadowMap.push({
-  //     main: node._sourceNode.extra.trailingComma,
-  //     shadow: node.extra.trailingComma,
-  //   });
-  // }
+  let last = node.elements.length - 1;
+  let mainTrailing = source
+    .slice(node._sourceNode.elements[last].end, node._sourceNode.end)
+    .indexOf(",");
+  let shadowTrailing = output
+    .slice(node.elements[last].end, node.end)
+    .indexOf(",");
+  if (shadowTrailing !== -1) {
+    shadowMap.push({
+      main:
+        mainTrailing !== -1
+          ? mainTrailing + node._sourceNode.elements[last].end
+          : undefined,
+      shadow: shadowTrailing + node.elements[last].end,
+    });
+  }
   return {
     shadowMap,
   };
@@ -501,7 +563,7 @@ function JSXIdentifier_to_StringLiteral(node) {
 export default function makeShadowMap(node, source, output) {
   if (!node.type) return;
 
-  let fn = mapFunctions[node.type];
+  let fn = shadowMapFunctions[node.type];
   if (fn && node._sourceNode.type === node.type) {
     return fn(node, source, output);
   }
@@ -624,7 +686,6 @@ export default function makeShadowMap(node, source, output) {
     // preventing something like unhandled node (ObjectPattern -> Identifier)
     node.type === node._sourceNode.type &&
     (node.type === "Identifier" ||
-      node.type === "StringLiteral" ||
       node.type === "BooleanLiteral" ||
       node.type === "NullLiteral" ||
       node.type === "NumericLiteral" ||

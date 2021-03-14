@@ -1,5 +1,6 @@
 import React from "react";
 import ReactDOM from "react-dom";
+import * as shiki from "shiki";
 import App from "./components/App";
 
 let GIST = false;
@@ -38,8 +39,8 @@ const profile = (
 );
 `.trim();
 // SOURCE = `<b c={1}></b>;`;
-SOURCE = `forEach(({ shadow }) => {});`.trim();
-// SOURCE = `let a = {"background":{"persistent":true}, "a": [1,2,3, {a: 4}]};`;
+// SOURCE = `forEach(({ shadow }) => {});`.trim();
+SOURCE = `let a = {"background":{"persistent":true}, "a": [1,2,3, {a: 4}]};`;
 let CONFIG = [
   {
     presets: [
@@ -174,16 +175,27 @@ async function initState() {
   }
 }
 
-initState().then(() => {
-  ReactDOM.render(
-    <React.StrictMode>
-      <App
-        defaultBabelConfig={CONFIG}
-        defaultSource={SOURCE}
-        defCustomPlugin={PLUGIN}
-        gist={GIST}
-      />
-    </React.StrictMode>,
-    document.getElementById("root")
-  );
-});
+async function initShiki() {
+  shiki.setCDN("https://unpkg.com/shiki/");
+  return await shiki.getHighlighter({
+    theme: "github-dark",
+    langs: ["javascript"],
+  });
+}
+
+initState()
+  .then(() => initShiki())
+  .then(shiki => {
+    ReactDOM.render(
+      <React.StrictMode>
+        <App
+          defaultBabelConfig={CONFIG}
+          defaultSource={SOURCE}
+          defCustomPlugin={PLUGIN}
+          gist={GIST}
+          shiki={shiki}
+        />
+      </React.StrictMode>,
+      document.getElementById("root")
+    );
+  });
