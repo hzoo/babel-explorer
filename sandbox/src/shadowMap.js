@@ -402,20 +402,22 @@ function ObjectExpression(node, source, output) {
     }
   });
   let last = node.properties.length - 1;
-  let mainTrailing = source
-    .slice(node._sourceNode.properties[last].end, node._sourceNode.end)
-    .indexOf(",");
-  let shadowTrailing = output
-    .slice(node.properties[last].end, node.end)
-    .indexOf(",");
-  if (shadowTrailing !== -1) {
-    shadowMap.push({
-      main:
-        mainTrailing !== -1
-          ? mainTrailing + node._sourceNode.properties[last].end
-          : undefined,
-      shadow: shadowTrailing + node.properties[last].end,
-    });
+  if (last > 0) {
+    let mainTrailing = source
+      .slice(node._sourceNode.properties[last].end, node._sourceNode.end)
+      .indexOf(",");
+    let shadowTrailing = output
+      .slice(node.properties[last].end, node.end)
+      .indexOf(",");
+    if (shadowTrailing !== -1) {
+      shadowMap.push({
+        main:
+          mainTrailing !== -1
+            ? mainTrailing + node._sourceNode.properties[last].end
+            : undefined,
+        shadow: shadowTrailing + node.properties[last].end,
+      });
+    }
   }
   return {
     shadowMap,
@@ -490,20 +492,22 @@ function ArrayExpression(node, source, output) {
     }
   });
   let last = node.elements.length - 1;
-  let mainTrailing = source
-    .slice(node._sourceNode.elements[last].end, node._sourceNode.end)
-    .indexOf(",");
-  let shadowTrailing = output
-    .slice(node.elements[last].end, node.end)
-    .indexOf(",");
-  if (shadowTrailing !== -1) {
-    shadowMap.push({
-      main:
-        mainTrailing !== -1
-          ? mainTrailing + node._sourceNode.elements[last].end
-          : undefined,
-      shadow: shadowTrailing + node.elements[last].end,
-    });
+  if (last > 0) {
+    let mainTrailing = source
+      .slice(node._sourceNode.elements[last].end, node._sourceNode.end)
+      .indexOf(",");
+    let shadowTrailing = output
+      .slice(node.elements[last].end, node.end)
+      .indexOf(",");
+    if (shadowTrailing !== -1) {
+      shadowMap.push({
+        main:
+          mainTrailing !== -1
+            ? mainTrailing + node._sourceNode.elements[last].end
+            : undefined,
+        shadow: shadowTrailing + node.elements[last].end,
+      });
+    }
   }
   return {
     shadowMap,
