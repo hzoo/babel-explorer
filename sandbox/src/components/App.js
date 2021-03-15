@@ -164,7 +164,7 @@ function markRanges(cm, type, ranges, rangeIndexes) {
 function markNodeFromIndex(cm, type, data) {
   const start = type === "source" ? data.start : data.outputStart;
   const end = type === "source" ? data.end : data.outputEnd;
-  const color = data.color || getCSSForTransform(data.name);
+  const color = data.color || getCSSForTransform(data.plugin);
   cm.doc.markText(cm.posFromIndex(start), cm.posFromIndex(end), {
     css: data.css || `background: ${color}`,
   });

@@ -71,7 +71,7 @@ module.exports = function babelPlugin(babel) {
 
         const props = [
           t.objectProperty(
-            t.identifier("name"),
+            t.identifier("plugin"),
             t.stringLiteral(this.pluginName)
           ),
           t.objectProperty(
@@ -129,7 +129,7 @@ module.exports = function babelPlugin(babel) {
           // }
           const props = [
             t.objectProperty(
-              t.identifier("name"),
+              t.identifier("plugin"),
               t.stringLiteral(this.pluginName)
             ),
             t.objectProperty(

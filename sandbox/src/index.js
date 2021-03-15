@@ -40,13 +40,19 @@ const profile = (
 `.trim();
 // SOURCE = `<b c={1}></b>;`;
 // SOURCE = `forEach(({ shadow }) => {});`.trim();
-SOURCE = `let a = {"background":{"persistent":true}, "a": [1,2,3, {a: 4}]};`;
+// SOURCE = `let a = {"background":{"persistent":true}, "a": [1,2,3, {a: 4}]};`;
+SOURCE = `let a = {a: b};`;
 let CONFIG = [
   {
     presets: [
       [
         "@babel/preset-env",
-        { loose: true, modules: false, shippedProposals: true },
+        {
+          // targets: "chrome 80",
+          loose: true,
+          modules: false,
+          shippedProposals: true,
+        },
       ],
       [
         "@babel/preset-react",
@@ -67,34 +73,8 @@ let CONFIG = [
         },
       ],
     ],
-    // plugins: [["@babel/plugin-transform-runtime", { useESModules: true }]],
+    plugins: [["@babel/plugin-transform-runtime", { regenerator: false }]],
   },
-  // {
-  //   presets: [
-  //     [
-  //       "@babel/preset-env",
-  //       {
-  //         loose: true,
-  //         modules: false,
-  //         shippedProposals: true,
-  //         targets: { esmodules: true },
-  //         bugfixes: true,
-  //       },
-  //     ],
-  //     "@babel/preset-react",
-  //     [
-  //       "@babel/preset-typescript",
-  //       {
-  //         isTSX: true,
-  //         allExtensions: true,
-  //         allowDeclareFields: true,
-  //         allowNamespaces: true,
-  //         onlyRemoveTypeImports: true,
-  //       },
-  //     ],
-  //   ],
-  //   plugins: [["@babel/plugin-transform-runtime", { useESModules: true }]],
-  // },
 ];
 let PLUGIN = `export default function customPlugin(babel) {
   return {
