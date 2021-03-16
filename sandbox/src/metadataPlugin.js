@@ -41,7 +41,7 @@ module.exports = function babelPlugin(babel) {
     visitor: {
       /*
       node.babelPlugin = [{
-        name: "proposal-numeric-separator",
+        plugin: "proposal-numeric-separator",
         file: "proposal-numeric-separator\\src\\index.js (16:10)",
         start: node.start,
         end: node.end
@@ -101,7 +101,7 @@ module.exports = function babelPlugin(babel) {
           )
         );
       },
-      // pathX.replaceWith(a) -> pathX.replaceWith(a, { name: "name" })
+      // pathX.replaceWith(a) -> pathX.replaceWith(a, { plugin: "plugin" })
       // TODO: handle nested MemberExpression like a.b.replaceWith
       // TODO: CallExpression like path.get("left").replaceWith
       CallExpression(path, state) {
@@ -122,7 +122,7 @@ module.exports = function babelPlugin(babel) {
           const comment = getMetaComment(path);
           // "C:\\Users\\babel\\packages\\babel-plugin-proposal-unicode-property-regex\\src\\index.js".match(/babel-(plugin|helper)-((\w+-?)+)/)
           // {
-          //   name: "unicode-property-regex",
+          //   plugin: "unicode-property-regex",
           //   file: "babel-plugin-proposal-unicode-property-regex\\src\\index.js",
           //   start: 0,
           //   end: 1,

@@ -1,7 +1,6 @@
 import React, { useState, useCallback, useEffect, useRef } from "react";
 import * as Babel from "@babel/core";
 import styled, { css } from "styled-components";
-// import diff_match_patch from "diff-match-patch";
 import prettier from "prettier";
 
 import AST from "./AST";
@@ -30,27 +29,14 @@ function getTargets(config) {
   }
 }
 
-const skipKeys = {
-  babelPlugin: 1,
-  start: 1,
-  end: 1,
-  loc: 1,
-  leadingComments: 1,
-  innerComments: 1,
-  trailingComments: 1,
-  type: 1,
-  range: 1,
-  comments: 1,
-};
-
 function mergeLoc(sourceAST, newAST, cb) {
   sourceAST.start = newAST.start;
   sourceAST.end = newAST.end;
   sourceAST.loc = newAST.loc;
 
-  for (let key of Object.keys(sourceAST)) {
-    if (skipKeys[key]) continue;
-
+  for (let key of Object.keys(sourceAST).filter(k =>
+    Babel.types.VISITOR_KEYS[sourceAST.type].includes(k)
+  )) {
     let value = sourceAST[key];
     if (!value) continue;
 
@@ -85,9 +71,9 @@ function mergeLoc(sourceAST, newAST, cb) {
 }
 
 function traverseAST(sourceAST, cb) {
-  for (let key of Object.keys(sourceAST)) {
-    if (skipKeys[key]) continue;
-
+  for (let key of Object.keys(sourceAST).filter(k =>
+    Babel.types.VISITOR_KEYS[sourceAST.type].includes(k)
+  )) {
     let value = sourceAST[key];
     if (!value) continue;
 
