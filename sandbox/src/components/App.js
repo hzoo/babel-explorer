@@ -42,30 +42,33 @@ function mergeLoc(sourceAST, newAST, cb) {
 
     if (Array.isArray(value)) {
       for (let i = 0; i < value.length; i++) {
-        if (value[i] && typeof value[i] === "object") {
-          if (!newAST[key][i]) continue;
+        let element = value[i];
+        if (typeof element === "object") {
+          let newElement = newAST[key][i];
+          if (!newElement) continue;
 
-          sourceAST[key][i].start = newAST[key][i].start;
-          sourceAST[key][i].end = newAST[key][i].end;
-          sourceAST[key][i].loc = newAST[key][i].loc;
+          element.start = newElement.start;
+          element.end = newElement.end;
+          element.loc = newElement.loc;
 
-          if (value[i].babelPlugin) {
-            cb(value[i]);
+          if (element.babelPlugin) {
+            cb(element);
           }
-          mergeLoc(value[i], newAST[key][i], cb);
+          mergeLoc(element, newElement, cb);
         }
       }
     } else if (typeof value === "object") {
-      if (!newAST[key]) continue;
+      let newValue = newAST[key];
+      if (!newValue) continue;
 
-      sourceAST[key].start = newAST[key].start;
-      sourceAST[key].end = newAST[key].end;
-      sourceAST[key].loc = newAST[key].loc;
+      value.start = newValue.start;
+      value.end = newValue.end;
+      value.loc = newValue.loc;
 
       if (value.babelPlugin) {
         cb(value);
       }
-      mergeLoc(value, newAST[key], cb);
+      mergeLoc(value, newValue, cb);
     }
   }
 }
@@ -79,8 +82,8 @@ function traverseAST(sourceAST, cb) {
 
     if (Array.isArray(value)) {
       for (let i = 0; i < value.length; i++) {
-        if (value[i] && typeof value[i] === "object") {
-          if (!sourceAST[key][i]) continue;
+        if (typeof value[i] === "object") {
+          if (!value[i]) continue;
 
           if (value[i]._sourceNode) {
             cb(value[i]);
