@@ -4,6 +4,7 @@ export const shadowMapFunctions = {
   AssignmentExpression,
   BinaryExpression,
   BlockStatement,
+  CallExpression,
   ConditionalExpression,
   ExpressionStatement,
   JSXAttribute,
@@ -57,6 +58,77 @@ function StringLiteral(node, source, output) {
       shadowMap,
     };
   }
+}
+
+function CallExpression(node, source, output) {
+  let shadowMap = [
+    {
+      main:
+        node._sourceNode.callee.end +
+        source
+          .slice(
+            node._sourceNode.callee.end,
+            node._sourceNode.arguments.length === 0
+              ? node._sourceNode.end
+              : node._sourceNode.arguments[0].start
+          )
+          .indexOf("("),
+      shadow:
+        node.callee.end +
+        output
+          .slice(
+            node.callee.end,
+            node.arguments.length === 0 ? node.end : node.arguments[0].start
+          )
+          .indexOf("("),
+    },
+    {
+      main:
+        node._sourceNode.arguments.length === 0
+          ? node._sourceNode.callee.end +
+            source
+              .slice(node._sourceNode.callee.end, node._sourceNode.end)
+              .indexOf(")")
+          : node._sourceNode.arguments[node._sourceNode.arguments.length - 1]
+              .end +
+            source
+              .slice(
+                node._sourceNode.arguments[
+                  node._sourceNode.arguments.length - 1
+                ].end,
+                node._sourceNode.end
+              )
+              .indexOf(")"),
+      shadow:
+        node.arguments.length === 0
+          ? node.callee.end +
+            output.slice(node.callee.end, node.end).indexOf(")")
+          : node.arguments[node.arguments.length - 1].end +
+            output
+              .slice(node.arguments[node.arguments.length - 1].end, node.end)
+              .indexOf(")"),
+    },
+  ];
+  node.arguments.forEach((argument, i) => {
+    if (i < node.arguments.length - 1) {
+      shadowMap.push({
+        main:
+          node._sourceNode.arguments[i].end +
+          source
+            .slice(
+              node._sourceNode.arguments[i].end,
+              node._sourceNode.arguments[i + 1].start
+            )
+            .indexOf(","),
+        shadow:
+          node.arguments[i].end +
+          output
+            .slice(node.arguments[i].end, node.arguments[i + 1].start)
+            .indexOf(","),
+      });
+    }
+  });
+  return { shadowMap };
 }
 
 function MetaProperty(node, source, output) {
@@ -585,8 +657,6 @@ function JSXIdentifier_to_StringLiteral(node) {
 }
 
 export default function makeShadowMap(node, source, output) {
-  if (!node.type) return;
-
   let fn = shadowMapFunctions[node.type];
   if (fn && node._sourceNode.type === node.type) {
     return fn(node, source, output);

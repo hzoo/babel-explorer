@@ -107,6 +107,7 @@ export function processOptions(options, customPlugin) {
     "AssignmentExpression",
     "BinaryExpression",
     "BlockStatement",
+    "CallExpression",
     "ConditionalExpression",
     "DebuggerStatement",
     "Directive",
