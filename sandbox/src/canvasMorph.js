@@ -377,7 +377,7 @@ export default function initCanvas(
 
       if (shadowMap || transformMap) {
         (shadowMap || []).forEach(({ main, shadow }, i) => {
-          if (mainChars[main] && shadow) {
+          if (mainChars[main] && shadow !== undefined) {
             // mainChars[main].shadowIndex = shadow;
             setShadows(mainChars, main, shadow);
             result[shadow] = undefined;

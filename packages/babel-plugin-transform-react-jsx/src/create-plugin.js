@@ -342,11 +342,13 @@ You can set \`throwIfNamespace: false\` to bypass this warning.`,
     }
 
     function accumulateAttribute(array, attribute) {
-      if (!attribute.node._sourceNode) {
-        attribute.node._sourceNode = {
-          ...t.cloneNode(attribute.node, true),
-        };
-      }
+      let _babelPlugin = {
+        plugin: "babel-plugin-transform-react-jsx",
+        ...t.cloneNode(attribute.node, true),
+      };
+      attribute.node._sourceNodes = attribute.node._sourceNodes
+        ? [...attribute.node._sourceNodes, _babelPlugin]
+        : [_babelPlugin];
 
       if (t.isJSXSpreadAttribute(attribute.node)) {
         const arg = attribute.node.argument;
@@ -566,10 +568,13 @@ You can set \`throwIfNamespace: false\` to bypass this warning.`,
 
       if (t.react.isCompatTag(tagName)) {
         let temp = t.stringLiteral(tagName);
-        temp._sourceNode = {
-          ...t.cloneNode(openingPath.node.name, true),
-          type: "JSXIdentifier",
-        };
+        temp._sourceNodes = [
+          {
+            plugin: "babel-plugin-transform-react-jsx",
+            ...t.cloneNode(openingPath.node.name, true),
+            type: "JSXIdentifier",
+          },
+        ];
         return temp;
       } else {
         return tagExpr;

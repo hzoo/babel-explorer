@@ -24,15 +24,7 @@ export default declare((api, opts) => {
       VariableDeclaration(path) {
         const { node, parent, scope } = path;
         if (!isBlockScoped(node)) return;
-        path.traverse({
-          Identifier(path) {
-            if (!path.node._sourceNode) {
-              path.node._sourceNode = {
-                ...t.cloneNode(path.node, true),
-              };
-            }
-          },
-        });
+
         convertBlockScopedToVar(path, null, parent, scope, true);
 
         if (node._tdzThis) {
