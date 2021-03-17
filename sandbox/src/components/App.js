@@ -51,7 +51,7 @@ function mergeLoc(sourceAST, newAST, cb) {
           element.end = newElement.end;
           element.loc = newElement.loc;
 
-          if (element.babelPlugin) {
+          if (element._sourceNodes) {
             cb(element);
           }
           mergeLoc(element, newElement, cb);
@@ -65,7 +65,7 @@ function mergeLoc(sourceAST, newAST, cb) {
       value.end = newValue.end;
       value.loc = newValue.loc;
 
-      if (value.babelPlugin) {
+      if (value._sourceNodes) {
         cb(value);
       }
       mergeLoc(value, newValue, cb);
@@ -306,8 +306,8 @@ function CompiledOutput({
         if (!added) transformedNodes.push(node);
 
         // add source ranges
-        for (let i = 0; i < node.babelPlugin.length; i++) {
-          const metadata = node.babelPlugin[i];
+        for (let i = 0; i < node._sourceNodes.length; i++) {
+          const metadata = node._sourceNodes[i];
           let rangesAdded = ranges.some((existingRange, rangeIndex) => {
             if (
               metadata.start < existingRange.start ||

@@ -4,7 +4,7 @@ const BABEL_PACKAGES_REGEXP =
 
 const { addNamespace } = require("@babel/helper-module-imports");
 
-module.exports = function babelPlugin(babel) {
+module.exports = function (babel) {
   const { types: t, template } = babel;
 
   function getMetaComment(path) {
@@ -12,13 +12,15 @@ module.exports = function babelPlugin(babel) {
       Allow specifying a node to get correct start/end
       (instead of defaulting to this.node).
 
-      // node: rest
+      // node: rest <-- check first comment
+      // @ts-expect-error todo(flow->ts): avoid mutating nodes
       target.insertBefore(loop);
     */
     const hasComment = path.parentPath.node.leadingComments;
     let comment;
     if (hasComment && hasComment.length) {
-      comment = hasComment[hasComment.length - 1].value.match(/node: (.*)/);
+      // top comment
+      comment = hasComment[0].value.match(/node: (.*)/);
       if (comment) {
         // remove the comment?
         path.parentPath.node.leadingComments = [];
@@ -29,7 +31,7 @@ module.exports = function babelPlugin(babel) {
   }
 
   return {
-    name: "transform-babel-metadata",
+    name: "transform-babel-plugin-metadata",
     pre(state) {
       const filename =
         state.opts.filename || "babel/packages/babel-plugin-custom/index.js";
@@ -40,7 +42,7 @@ module.exports = function babelPlugin(babel) {
     },
     visitor: {
       /*
-      node.babelPlugin = [{
+      node._sourceNodes = [{
         plugin: "proposal-numeric-separator",
         file: "proposal-numeric-separator\\src\\index.js (16:10)",
         start: node.start,
@@ -89,19 +91,39 @@ module.exports = function babelPlugin(babel) {
         ];
         const metaNode = t.objectExpression(props);
 
-        path.insertBefore(
+        /*
+          let _babelPlugin = Object.assign({
+            plugin: "babel-plugin-transform-shorthand-properties",
+            file: "vscode://file/C:\\Users\\Hen\\win-dev\\babel\\packages\\babel-plugin-transform-shorthand-properties\\src\\index.js:40:12"
+          }, t.cloneNode(node, true));
+          node._sourceNodes = node._sourceNodes ? [...node._sourceNodes, _babelPlugin] : [_babelPlugin]
+          node.shorthand = false;
+        */
+        let temp = path.scope.generateUidIdentifier("babelPlugin");
+        path.insertBefore([
+          t.variableDeclaration("let", [t.variableDeclarator(temp, metaNode)]),
           t.assignmentExpression(
             "=",
-            t.memberExpression(comment, t.identifier("babelPlugin")),
-            t.logicalExpression(
-              "||",
-              t.memberExpression(comment, t.identifier("babelPlugin")),
-              t.arrayExpression([metaNode])
+            t.memberExpression(comment, t.identifier("_sourceNodes")),
+            t.conditionalExpression(
+              t.memberExpression(comment, t.identifier("_sourceNodes")),
+              t.arrayExpression([
+                t.spreadElement(
+                  t.memberExpression(comment, t.identifier("_sourceNodes"))
+                ),
+                temp,
+              ]),
+              t.arrayExpression([temp])
             )
-          )
-        );
+          ),
+        ]);
       },
-      // pathX.replaceWith(a) -> pathX.replaceWith(a, { plugin: "plugin" })
+
+      //  pathX.replaceWith(a) -> pathX.replaceWith(a, {
+      //   plugin: "babel-plugin-transform-template-literals",
+      //   file: "babel-plugin-transform-template-literals/src/index.js:89:8",
+      //   ...t.cloneNode(path.node, true),
+      // })
       // TODO: handle nested MemberExpression like a.b.replaceWith
       // TODO: CallExpression like path.get("left").replaceWith
       CallExpression(path, state) {
@@ -165,13 +187,13 @@ module.exports = function babelPlugin(babel) {
                 t.memberExpression(babelTypesRef, t.identifier("cloneNode")),
                 [
                   comment
-                    ? t.optionalMemberExpression(
-                        comment,
+                    ? comment
+                    : t.optionalMemberExpression(
+                        currentPathNode,
                         t.identifier("node"),
                         false,
                         true
-                      )
-                    : currentPathNode,
+                      ),
                   t.booleanLiteral(true),
                 ]
               )

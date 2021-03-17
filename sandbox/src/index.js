@@ -41,7 +41,31 @@ const profile = (
 // SOURCE = `<b c={1}></b>;`;
 // SOURCE = `forEach(({ shadow }) => {});`.trim();
 // SOURCE = `let a = {"background":{"persistent":true}, "a": [1,2,3, {a: 4}]};`;
-SOURCE = `let a = {a: b};`;
+// SOURCE = `let a = {a: b};`;
+// SOURCE = `const foo = (...a) => \`\${a?.b}\`;
+// enum Direction {
+//   Left,
+//   Up,
+//   Down,
+//   Right
+// }
+// class A {
+//   a() {
+//     for (b of []) {
+//       \`a\${c?.[1_0_0_0_0]}\`;
+//       var z = [...f];
+//     }
+//     let d = {
+//       f() {},
+//       x
+//     };
+//     return <a></a>;
+//   }
+// }`.trim();
+// SOURCE = `let d = {
+//   f() {},
+//   x
+// };`;
 let CONFIG = [
   {
     presets: [

@@ -120,6 +120,7 @@ export function processOptions(options, customPlugin) {
     "MemberExpression",
     "MetaProperty",
     "ObjectExpression",
+    "ObjectProperty",
     "SequenceExpression",
     "SpreadElement",
     "ThisExpression",
@@ -135,7 +136,7 @@ export function processOptions(options, customPlugin) {
       visitor: {
         [handledVisitors](path) {
           if (!path.node._sourceNode) {
-            path.node._sourceNode = path.node.babelPlugin?.[0] || {
+            path.node._sourceNode = path.node._sourceNodes?.[0] || {
               ...t.cloneNode(path.node, true),
             };
           }

@@ -227,20 +227,21 @@ Object.assign(
 
 NodePath.prototype.addMetadata = function (node, metaData) {
   if (!metaData) return;
+
   const { start, end, ...other } = metaData;
   const newNode = {
     ...other,
     start:
       node.start ||
       this.node?.start ||
-      this.node?.babelPlugin?.[0].start ||
+      this.node?._sourceNodes?.[0].start ||
       start,
-    end: node.end || this.node?.end || this.node?.babelPlugin?.[0].end || end,
+    end: node.end || this.node?.end || this.node?._sourceNodes?.[0].end || end,
   };
-  if (!this?.node?.babelPlugin) {
-    node.babelPlugin = [newNode];
+  if (!this?.node?._sourceNodes) {
+    node._sourceNodes = [newNode];
   } else {
-    node.babelPlugin = this.node.babelPlugin.concat(newNode);
+    node._sourceNodes = this.node._sourceNodes.concat(newNode);
   }
 };
 

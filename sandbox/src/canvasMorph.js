@@ -173,28 +173,32 @@ export default function initCanvas(
             char.animX = animate(char.x, shadowChar.x, t);
             char.animY = animate(char.y, shadowChar.y, t);
 
-            char.bgStyle = `rgba(255, 192, 203, ${
-              t === 0 ? 0 : animate(0, 0.2, t)
-            })`;
+            // char.bgStyle = `rgba(255, 192, 203, ${
+            //   t === 0 ? 0 : animate(0, 0.2, t)
+            // })`;
             char.fillStyle = t < 0.5 ? char.color : shadowChar.color;
             char.fillStyle = char.color;
             if (char.shadows) {
               char.shadows.forEach(shadow => {
                 const extraIndex = shadowChars[shadow];
-                extraShadows.push({
-                  animX:
-                    t < 0.3
-                      ? animate(char.x, shadowChar.x, t)
-                      : animate(shadowChar.x, extraIndex.x, t),
-                  animY:
-                    t < 0.3
-                      ? animate(char.y, shadowChar.y, t)
-                      : animate(shadowChar.y, extraIndex.y, t),
-                  bgStyle:
-                    char.color &&
-                    `rgba(238, 192, 255, ${t === 0 ? 0 : animate(0, 0.2, t)})`,
-                  ...extraIndex,
-                });
+                if (t > 0.15) {
+                  extraShadows.push({
+                    animX:
+                      t < 0.3
+                        ? animate(char.x, shadowChar.x, t)
+                        : animate(shadowChar.x, extraIndex.x, t),
+                    animY:
+                      t < 0.3
+                        ? animate(char.y, shadowChar.y, t)
+                        : animate(shadowChar.y, extraIndex.y, t),
+                    bgStyle:
+                      char.color &&
+                      `rgba(238, 192, 255, ${
+                        t === 0 ? 0 : animate(0, 0.2, t)
+                      })`,
+                    ...extraIndex,
+                  });
+                }
               });
             }
           } else if ("transform" in char) {

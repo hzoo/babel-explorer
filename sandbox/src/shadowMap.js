@@ -11,6 +11,7 @@ export const shadowMapFunctions = {
   MemberExpression,
   MetaProperty,
   ObjectExpression,
+  ObjectProperty,
   SequenceExpression,
   SpreadElement,
   StringLiteral,
@@ -357,46 +358,65 @@ function AssignmentExpression(node, source, output) {
   };
 }
 
+function ObjectProperty(node, source, output) {
+  let shadowMap = [
+    {
+      main:
+        !node._sourceNode.shorthand &&
+        node._sourceNode.key.end +
+          source
+            .slice(node._sourceNode.key.end, node._sourceNode.value.start)
+            .indexOf(":"),
+      shadow:
+        !node.shorthand &&
+        node.key.end +
+          output.slice(node.key.end, node.value.start).indexOf(":"),
+    },
+  ];
+
+  if (node.computed) {
+    shadowMap.push({
+      main: node._sourceNode.computed && node._sourceNode.start,
+      shadow: node.start,
+    });
+    shadowMap.push({
+      main:
+        node._sourceNode.computed &&
+        node._sourceNode.key.end +
+          source
+            .slice(node._sourceNode.key.end, node._sourceNode.value.start)
+            .indexOf("]"),
+      shadow:
+        node.key.end +
+        output.slice(node.key.end, node.value.start).indexOf("]"),
+    });
+  }
+
+  return {
+    shadowMap,
+  };
+}
+
 function ObjectExpression(node, source, output) {
   let shadowMap = [
     { main: node._sourceNode.start, shadow: node.start },
     { main: node._sourceNode.end - 1, shadow: node.end - 1 },
   ];
   node.properties.forEach((element, i) => {
-    shadowMap.push({
-      main:
-        !node._sourceNode.properties[i].shorthand &&
-        node._sourceNode.properties[i].key.end +
-          source
-            .slice(
-              node._sourceNode.properties[i].key.end,
-              node._sourceNode.properties[i].value.start
-            )
-            .indexOf(":"),
-      shadow:
-        !node.properties[i].shorthand &&
-        node.properties[i].key.end +
-          output
-            .slice(node.properties[i].key.end, node.properties[i].value.start)
-            .indexOf(":"),
-    });
     if (i < node.properties.length - 1) {
       shadowMap.push({
         main:
-          node._sourceNode.properties[i].value.end +
+          node._sourceNode.properties[i].end +
           source
             .slice(
-              node._sourceNode.properties[i].value.end,
+              node._sourceNode.properties[i].end,
               node._sourceNode.properties[i + 1].key.start
             )
             .indexOf(","),
         shadow:
-          node.properties[i].value.end +
+          node.properties[i].end +
           output
-            .slice(
-              node.properties[i].value.end,
-              node.properties[i + 1].key.start
-            )
+            .slice(node.properties[i].end, node.properties[i + 1].key.start)
             .indexOf(","),
       });
     }

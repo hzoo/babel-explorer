@@ -16,8 +16,8 @@ export default declare(api => {
             t.isIdentifier(key) &&
             !t.isValidES3Identifier(key.name)
           ) {
-            // default: "bar" -> "default": "bar"
             // node: node
+            // default: "bar" -> "default": "bar"
             node.key = t.stringLiteral(key.name);
           }
         },
