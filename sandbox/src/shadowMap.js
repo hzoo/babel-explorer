@@ -6,9 +6,11 @@ export const shadowMapFunctions = {
   BlockStatement,
   BreakStatement,
   CallExpression,
+  CatchClause,
   ConditionalExpression,
   ContinueStatement,
   ExpressionStatement,
+  IfStatement,
   JSXAttribute,
   LabeledStatement,
   LogicalExpression,
@@ -19,7 +21,10 @@ export const shadowMapFunctions = {
   SequenceExpression,
   SpreadElement,
   StringLiteral,
+  SwitchCase,
+  SwitchStatement,
   ThrowStatement,
+  TryStatement,
   RegExpLiteral,
   ReturnStatement,
   UnaryExpression,
@@ -63,6 +68,297 @@ function ReturnStatement(...args) {
 
 function ThrowStatement(...args) {
   return buildLabelStatement(...args, "throw");
+}
+
+// switch (expr) {}
+// switch (a) { case 'a': a; case 'b': b; }
+// TODO: account for parens (check node.extra.parenthesized)
+function SwitchStatement(node, source, output) {
+  let shadowMap = [
+    {
+      main:
+        node._sourceNode.start +
+        source
+          .slice(node._sourceNode.start, node._sourceNode.discriminant.start)
+          .indexOf("("),
+      shadow:
+        node.start +
+        output.slice(node.start, node.discriminant.start).indexOf("("),
+    },
+    {
+      main:
+        node._sourceNode.discriminant.end +
+        source
+          .slice(
+            node._sourceNode.discriminant.end,
+            node._sourceNode.cases.length === 0
+              ? node._sourceNode.end
+              : node._sourceNode.cases[0].start
+          )
+          .indexOf(")"),
+      shadow:
+        node.discriminant.end +
+        output
+          .slice(
+            node.discriminant.end,
+            node.cases.length === 0 ? node.end : node.cases[0].start
+          )
+          .indexOf(")"),
+    },
+    {
+      main:
+        node._sourceNode.discriminant.end +
+        source
+          .slice(
+            node._sourceNode.discriminant.end,
+            node._sourceNode.cases.length === 0
+              ? node._sourceNode.end
+              : node._sourceNode.cases[0].start
+          )
+          .indexOf("{"),
+      shadow:
+        node.discriminant.end +
+        output
+          .slice(
+            node.discriminant.end,
+            node.cases.length === 0 ? node.end : node.cases[0].start
+          )
+          .indexOf("{"),
+    },
+    {
+      main:
+        node._sourceNode.cases.length === 0
+          ? node._sourceNode.discriminant.end +
+            source
+              .slice(node._sourceNode.discriminant.end, node._sourceNode.end)
+              .indexOf("}")
+          : node._sourceNode.cases[node._sourceNode.cases.length - 1].end +
+            source
+              .slice(
+                node._sourceNode.cases[node._sourceNode.cases.length - 1].end,
+                node._sourceNode.end
+              )
+              .indexOf("}"),
+      shadow:
+        node.cases.length === 0
+          ? node.discriminant.end +
+            output.slice(node.discriminant.end, node.end).indexOf("}")
+          : node.cases[node.cases.length - 1].end +
+            output
+              .slice(node.cases[node.cases.length - 1].end, node.end)
+              .indexOf("}"),
+    },
+  ];
+
+  [...Array("switch".length)].forEach((_, i) => {
+    shadowMap.push({
+      main: node._sourceNode.start + i,
+      shadow: node.start + i,
+    });
+  });
+
+  return {
+    shadowMap,
+  };
+}
+
+// case 'a': a;
+function SwitchCase(node, source, output) {
+  let shadowMap = [];
+
+  if (node.test) {
+    shadowMap.push({
+      main:
+        node._sourceNode.test.end +
+        source
+          .slice(node._sourceNode.test.end, node._sourceNode.consequent.start)
+          .indexOf(":"),
+      shadow:
+        node.test.end +
+        output.slice(node.test.end, node.consequent.start).indexOf(":"),
+    });
+    [...Array("case".length)].forEach((_, i) => {
+      shadowMap.push({
+        main: node._sourceNode.start + i,
+        shadow: node.start + i,
+      });
+    });
+  } else {
+    // default:
+    [...Array("default".length)].forEach((_, i) => {
+      shadowMap.push({
+        main: node._sourceNode.start + i,
+        shadow: node.start + i,
+      });
+    });
+    // :
+    shadowMap.push({
+      main:
+        node._sourceNode.start +
+        source
+          .slice(node._sourceNode.start, node._sourceNode.consequent.start)
+          .indexOf(":"),
+      shadow:
+        node.start +
+        output.slice(node.start, node.consequent.start).indexOf(":"),
+    });
+  }
+
+  return {
+    shadowMap,
+  };
+}
+
+/*
+interface TryStatement <: Statement {
+  type: "TryStatement";
+  block: BlockStatement;
+  handler: CatchClause | null;
+  finalizer: BlockStatement | null;
+}
+*/
+function TryStatement(node, source, output) {
+  let shadowMap = [];
+
+  [...Array("try".length)].forEach((_, i) => {
+    shadowMap.push({
+      main: node._sourceNode.start + i,
+      shadow: node.start + i,
+    });
+  });
+
+  if (node.finalizer) {
+    let finalizerStart = node.handler ? "handler" : "block";
+    [...Array("finally".length)].forEach((_, i) => {
+      shadowMap.push({
+        main:
+          node._sourceNode[finalizerStart].end +
+          source
+            .slice(
+              node._sourceNode[finalizerStart].end,
+              node._sourceNode.finalizer.start
+            )
+            .indexOf("finally") +
+          i,
+        shadow:
+          node[finalizerStart].end +
+          output
+            .slice(node[finalizerStart].end, node.finalizer.start)
+            .indexOf("finally") +
+          i,
+      });
+    });
+  }
+
+  return {
+    shadowMap,
+  };
+}
+
+/*
+interface CatchClause <: Node {
+  type: "CatchClause";
+  param?: Pattern;
+  body: BlockStatement;
+}
+*/
+// TODO: Optional Catch Binding
+function CatchClause(node, source, output) {
+  let shadowMap = [];
+
+  [...Array("catch".length)].forEach((_, i) => {
+    shadowMap.push({
+      main: node._sourceNode.start + i,
+      shadow: node.start + i,
+    });
+  });
+
+  if (node.param) {
+    shadowMap.push({
+      main:
+        node._sourceNode.param &&
+        node._sourceNode.start +
+          source
+            .slice(node._sourceNode.start, node._sourceNode.param.start)
+            .indexOf("("),
+      shadow:
+        node.start + output.slice(node.start, node.param.start).indexOf("("),
+    });
+    shadowMap.push({
+      main:
+        node._sourceNode.param &&
+        node._sourceNode.param.end +
+          source
+            .slice(node._sourceNode.param.end, node._sourceNode.body.start)
+            .indexOf(")"),
+      shadow:
+        node.param.end +
+        output.slice(node.param.end, node.body.start).indexOf(")"),
+    });
+  }
+
+  return {
+    shadowMap,
+  };
+}
+
+// if (a) a; else if (b) b; else c;
+function IfStatement(node, source, output) {
+  let shadowMap = [
+    {
+      main: node._sourceNode.start,
+      shadow: node.start,
+    },
+    {
+      main: node._sourceNode.start + 1,
+      shadow: node.start + 1,
+    },
+    {
+      main:
+        node._sourceNode.start +
+        source
+          .slice(node._sourceNode.start, node._sourceNode.test.start)
+          .indexOf("("),
+      shadow:
+        node.start + output.slice(node.start, node.test.start).indexOf("("),
+    },
+    {
+      main:
+        node._sourceNode.test.end +
+        source
+          .slice(node._sourceNode.test.end, node._sourceNode.consequent.start)
+          .indexOf(")"),
+      shadow:
+        node.test.end +
+        output.slice(node.test.end, node.consequent.start).indexOf(")"),
+    },
+  ];
+
+  if (node.alternate) {
+    [...Array("else".length)].forEach((_, i) => {
+      shadowMap.push({
+        main:
+          node._sourceNode.consequent.end +
+          source
+            .slice(
+              node._sourceNode.consequent.end,
+              node._sourceNode.alternate.start
+            )
+            .indexOf("else") +
+          i,
+        shadow:
+          node.consequent.end +
+          output
+            .slice(node.consequent.end, node.alternate.start)
+            .indexOf("else") +
+          i,
+      });
+    });
+  }
+
+  return {
+    shadowMap,
+  };
 }
 
 // "'asdf'" -> "asdf" in ObjectProperty
