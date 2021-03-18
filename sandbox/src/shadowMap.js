@@ -11,11 +11,13 @@ export const shadowMapFunctions = {
   ContinueStatement,
   ExpressionStatement,
   IfStatement,
+  FunctionDeclaration,
   JSXAttribute,
   LabeledStatement,
   LogicalExpression,
   MemberExpression,
   MetaProperty,
+  // NewExpression,
   ObjectExpression,
   ObjectProperty,
   SequenceExpression,
@@ -310,6 +312,133 @@ function CatchClause(node, source, output) {
   };
 }
 
+/*
+interface Function <: Node {
+  id: Identifier | null;
+  params: [ Pattern ];
+  body: BlockStatement;
+  generator: boolean;
+  async: boolean;
+}*/
+function FunctionDeclaration(node, source, output) {
+  let shadowMap = [
+    {
+      main:
+        node._sourceNode.params.length === 0
+          ? node._sourceNode.id.end +
+            source
+              .slice(node._sourceNode.id.end, node._sourceNode.body.start)
+              .indexOf("(")
+          : node._sourceNode.id.end +
+            source
+              .slice(node._sourceNode.id.end, node._sourceNode.params[0].start)
+              .indexOf("("),
+      shadow:
+        node.params.length === 0
+          ? node.id.end +
+            output.slice(node.id.end, node.body.start).indexOf("(")
+          : node.id.end +
+            output.slice(node.id.end, node.params[0].start).indexOf("("),
+    },
+    {
+      main:
+        node._sourceNode.params.length === 0
+          ? node._sourceNode.id.end +
+            source
+              .slice(node._sourceNode.id.end, node._sourceNode.body.start)
+              .indexOf(")")
+          : node._sourceNode.params[node._sourceNode.params.length - 1].end +
+            source
+              .slice(
+                node._sourceNode.params[node._sourceNode.params.length - 1].end,
+                node._sourceNode.body.start
+              )
+              .indexOf(")"),
+      shadow:
+        node.params.length === 0
+          ? node.id.end +
+            output.slice(node.id.end, node.body.start).indexOf(")")
+          : node.params[node.params.length - 1].end +
+            output
+              .slice(node.params[node.params.length - 1].end, node.body.start)
+              .indexOf(")"),
+    },
+  ];
+
+  node.params.forEach((param, i) => {
+    if (i < node.params.length - 1) {
+      shadowMap.push({
+        main:
+          node._sourceNode.params[i].end +
+          source
+            .slice(
+              node._sourceNode.params[i].end,
+              node._sourceNode.params[i + 1].start
+            )
+            .indexOf(","),
+        shadow:
+          node.params[i].end +
+          output
+            .slice(node.params[i].end, node.params[i + 1].start)
+            .indexOf(","),
+      });
+    }
+  });
+  let last = node.params.length - 1;
+  if (last > 0) {
+    let mainTrailing = source
+      .slice(node._sourceNode.params[last].end, node._sourceNode.end)
+      .indexOf(",");
+    let shadowTrailing = output
+      .slice(node.params[last].end, node.end)
+      .indexOf(",");
+    if (shadowTrailing !== -1) {
+      shadowMap.push({
+        main:
+          mainTrailing !== -1
+            ? mainTrailing + node._sourceNode.params[last].end
+            : undefined,
+        shadow: shadowTrailing + node.params[last].end,
+      });
+    }
+  }
+  if (node.async) {
+    // function
+    [...Array("async".length)].forEach((_, i) => {
+      shadowMap.push({
+        main: node._sourceNode.start + i,
+        shadow: node.start + i,
+      });
+    });
+    [...Array("function".length)].forEach((_, i) => {
+      shadowMap.push({
+        main:
+          node._sourceNode.start +
+          source
+            .slice(node._sourceNode.start, node._sourceNode.id.start)
+            .indexOf("function") +
+          i,
+        shadow:
+          node.start +
+          output.slice(node.start, node.id.start).indexOf("function") +
+          i,
+      });
+    });
+  } else {
+    // function
+    [...Array("function".length)].forEach((_, i) => {
+      shadowMap.push({
+        main: node._sourceNode.start + i,
+        shadow: node.start + i,
+      });
+    });
+  }
+
+  return {
+    shadowMap,
+  };
+}
+
 // if (a) a; else if (b) b; else c;
 function IfStatement(node, source, output) {
   let shadowMap = [
@@ -413,8 +542,22 @@ function StringLiteral(node, source, output) {
   }
 }
 
-// a(a,b,c)
+function NewExpression(node, source, output) {
+  // let shadowMap = CallExpression(node, source, output).shadowMap;
 
+  [...Array("new".length)].forEach((_, i) => {
+    shadowMap.push({
+      main: node._sourceNode.start + i,
+      shadow: node.start + i,
+    });
+  });
+
+  return {
+    shadowMap,
+  };
+}
+
+// a(a,b,c)
 function CallExpression(node, source, output) {
   let shadowMap = [
     {
