@@ -12,7 +12,7 @@ function createRenderer(canvas) {
       ctx.scale(dpr, dpr);
     }
   }
-  setDPR(canvas, 4);
+  setDPR(canvas, 6);
 
   const ctx = canvas.getContext("2d");
   ctx.textBaseline = "top";
@@ -89,6 +89,7 @@ function hexToRgb(hex) {
 }
 
 let Renderer;
+let continous;
 
 export default function initCanvas(
   canvas,
@@ -167,9 +168,9 @@ export default function initCanvas(
 
         let extraShadows = [];
 
-        for (let char of mainChars) {
+        for (let char of window.mainChars) {
           if ("shadowIndex" in char) {
-            const shadowChar = shadowChars[char.shadowIndex];
+            const shadowChar = window.shadowChars[char.shadowIndex];
             char.animX = animate(char.x, shadowChar.x, t);
             char.animY = animate(char.y, shadowChar.y, t);
 
@@ -180,7 +181,7 @@ export default function initCanvas(
             char.fillStyle = char.color;
             if (char.shadows) {
               char.shadows.forEach(shadow => {
-                const extraIndex = shadowChars[shadow];
+                const extraIndex = window.shadowChars[shadow];
                 if (t > 0.15) {
                   extraShadows.push({
                     animX:
@@ -202,7 +203,7 @@ export default function initCanvas(
               });
             }
           } else if ("transform" in char) {
-            const shadowChar = shadowChars[char.transform.shadow];
+            const shadowChar = window.shadowChars[char.transform.shadow];
             if (t > 0.5) {
               char.c = char.transform.cShadow;
             } else {
@@ -223,7 +224,7 @@ export default function initCanvas(
           }
         }
 
-        for (let char of createCharRuns) {
+        for (let char of window.createCharRuns) {
           // char.fillStyle = `rgba(0, 0, 0, ${animate(0, 1, t)})`;
           char.fillStyle = `rgba${char.color.slice(3, -1)},${animate(
             0,
@@ -231,9 +232,9 @@ export default function initCanvas(
             t
           )})`;
         }
-        Renderer.render(createCharRuns);
+        Renderer.render(window.createCharRuns);
 
-        for (let char of createNewChars) {
+        for (let char of window.createNewChars) {
           // char.fillStyle = `rgba(0, 0, 0, ${animate(0, 1, t)})`;
           char.fillStyle = `rgba${char.color.slice(3, -1)},${animate(
             0,
@@ -242,10 +243,10 @@ export default function initCanvas(
           )})`;
           // char.bgStyle = `rgba(102, 187, 106, ${animate(0, 0.5, t)})`;
         }
-        Renderer.render(createNewChars);
+        Renderer.render(window.createNewChars);
 
         Renderer.render(extraShadows);
-        Renderer.render(mainChars);
+        Renderer.render(window.mainChars);
       };
     })();
 
@@ -327,6 +328,26 @@ export default function initCanvas(
     Animator.slowMode = e.shiftKey;
   };
 
+  document.onkeydown = function (e) {
+    // auto play
+    if (e.key === "@") {
+      Animator.slowMode = true;
+      if (!continous) {
+        continous = setInterval(() => {
+          if (Animator.target === 0) {
+            Animator.target = 1;
+          } else if (Animator.target === 1) {
+            Animator.target = 0;
+          }
+        }, 1000);
+      } else {
+        Animator.slowMode = false;
+        clearInterval(continous);
+        continous = 0;
+      }
+    }
+  };
+
   const createNewChars = (() => {
     // only newly inserted chars
     let newIndexesMap = shadowIndexesMap.filter(a => a.source === undefined);
@@ -348,6 +369,7 @@ export default function initCanvas(
     }
     return result;
   })();
+  window.createNewChars = createNewChars;
 
   function setShadows(mainChars, mainIndex, shadowIndex) {
     if (mainChars[mainIndex].shadowIndex === undefined) {
@@ -406,4 +428,5 @@ export default function initCanvas(
     result = result.filter(a => a);
     return result;
   })();
+  window.createCharRuns = createCharRuns;
 }
