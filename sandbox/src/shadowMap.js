@@ -74,6 +74,7 @@ function ThrowStatement(...args) {
 // switch (a) { case 'a': a; case 'b': b; }
 // TODO: account for parens (check node.extra.parenthesized)
 function SwitchStatement(node, source, output) {
+  // () {}
   let shadowMap = [
     {
       main:
@@ -150,6 +151,7 @@ function SwitchStatement(node, source, output) {
     },
   ];
 
+  // switch
   [...Array("switch".length)].forEach((_, i) => {
     shadowMap.push({
       main: node._sourceNode.start + i,
@@ -167,6 +169,7 @@ function SwitchCase(node, source, output) {
   let shadowMap = [];
 
   if (node.test) {
+    // :
     shadowMap.push({
       main:
         node._sourceNode.test.end +
@@ -177,6 +180,7 @@ function SwitchCase(node, source, output) {
         node.test.end +
         output.slice(node.test.end, node.consequent.start).indexOf(":"),
     });
+    // case
     [...Array("case".length)].forEach((_, i) => {
       shadowMap.push({
         main: node._sourceNode.start + i,
@@ -220,6 +224,7 @@ interface TryStatement <: Statement {
 function TryStatement(node, source, output) {
   let shadowMap = [];
 
+  // try
   [...Array("try".length)].forEach((_, i) => {
     shadowMap.push({
       main: node._sourceNode.start + i,
@@ -227,6 +232,7 @@ function TryStatement(node, source, output) {
     });
   });
 
+  // finall
   if (node.finalizer) {
     let finalizerStart = node.handler ? "handler" : "block";
     [...Array("finally".length)].forEach((_, i) => {
@@ -266,6 +272,7 @@ interface CatchClause <: Node {
 function CatchClause(node, source, output) {
   let shadowMap = [];
 
+  // catch
   [...Array("catch".length)].forEach((_, i) => {
     shadowMap.push({
       main: node._sourceNode.start + i,
@@ -273,6 +280,7 @@ function CatchClause(node, source, output) {
     });
   });
 
+  // ( )
   if (node.param) {
     shadowMap.push({
       main:
@@ -305,14 +313,17 @@ function CatchClause(node, source, output) {
 // if (a) a; else if (b) b; else c;
 function IfStatement(node, source, output) {
   let shadowMap = [
+    // i
     {
       main: node._sourceNode.start,
       shadow: node.start,
     },
+    // f
     {
       main: node._sourceNode.start + 1,
       shadow: node.start + 1,
     },
+    // (
     {
       main:
         node._sourceNode.start +
@@ -322,6 +333,7 @@ function IfStatement(node, source, output) {
       shadow:
         node.start + output.slice(node.start, node.test.start).indexOf("("),
     },
+    // )
     {
       main:
         node._sourceNode.test.end +
@@ -334,6 +346,7 @@ function IfStatement(node, source, output) {
     },
   ];
 
+  // else
   if (node.alternate) {
     [...Array("else".length)].forEach((_, i) => {
       shadowMap.push({
