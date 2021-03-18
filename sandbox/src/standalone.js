@@ -107,8 +107,10 @@ export function processOptions(options, customPlugin) {
     "AssignmentExpression",
     "BinaryExpression",
     "BlockStatement",
+    "BreakStatement",
     "CallExpression",
     "ConditionalExpression",
+    "ContinueStatement",
     "DebuggerStatement",
     "Directive",
     "EmptyStatement",
@@ -116,6 +118,7 @@ export function processOptions(options, customPlugin) {
     "Identifier",
     "Import",
     "JSXAttribute",
+    "LabeledStatement",
     "Literal",
     "LogicalExpression",
     "MemberExpression",
@@ -125,6 +128,8 @@ export function processOptions(options, customPlugin) {
     "SequenceExpression",
     "SpreadElement",
     "ThisExpression",
+    "ThrowStatement",
+    "ReturnStatement",
     "UnaryExpression",
     "UpdateExpression",
     "VariableDeclaration",
@@ -139,6 +144,7 @@ export function processOptions(options, customPlugin) {
           if (!path.node._sourceNode) {
             path.node._sourceNode = path.node._sourceNodes?.[0] || {
               ...t.cloneNode(path.node, true),
+              _newNode: true,
             };
           }
         },
@@ -157,6 +163,7 @@ export function processOptions(options, customPlugin) {
         "classProperties",
         "classPrivateProperties",
         "classPrivateMethods",
+        "decimal",
       ],
     },
     babelrc: false,

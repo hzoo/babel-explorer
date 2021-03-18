@@ -4,10 +4,13 @@ export const shadowMapFunctions = {
   AssignmentExpression,
   BinaryExpression,
   BlockStatement,
+  BreakStatement,
   CallExpression,
   ConditionalExpression,
+  ContinueStatement,
   ExpressionStatement,
   JSXAttribute,
+  LabeledStatement,
   LogicalExpression,
   MemberExpression,
   MetaProperty,
@@ -16,10 +19,51 @@ export const shadowMapFunctions = {
   SequenceExpression,
   SpreadElement,
   StringLiteral,
+  ThrowStatement,
   RegExpLiteral,
+  ReturnStatement,
   UnaryExpression,
   UpdateExpression,
+  // WithStatement,
 };
+
+function buildLabelStatement(node, source, output, prefix) {
+  // prefix (e.g. return)
+  let shadowMap = [...Array(prefix.length)].map((_, i) => {
+    return {
+      main: node._sourceNode.start + i,
+      shadow: node.start + i,
+    };
+  });
+
+  // ;
+  if (
+    source[node._sourceNode.end - 1] === ";" &&
+    output[node.end - 1] === ";"
+  ) {
+    shadowMap.push({ main: node._sourceNode.end - 1, shadow: node.end - 1 });
+  }
+
+  return {
+    shadowMap,
+  };
+}
+
+function BreakStatement(...args) {
+  return buildLabelStatement(...args, "break");
+}
+
+function ContinueStatement(...args) {
+  return buildLabelStatement(...args, "continue");
+}
+
+function ReturnStatement(...args) {
+  return buildLabelStatement(...args, "return");
+}
+
+function ThrowStatement(...args) {
+  return buildLabelStatement(...args, "throw");
+}
 
 // "'asdf'" -> "asdf" in ObjectProperty
 function StringLiteral(node, source, output) {
@@ -59,6 +103,8 @@ function StringLiteral(node, source, output) {
     };
   }
 }
+
+// a(a,b,c)
 
 function CallExpression(node, source, output) {
   let shadowMap = [
@@ -143,6 +189,23 @@ function MetaProperty(node, source, output) {
         shadow:
           node.meta.end +
           output.slice(node.meta.end, node.property.start).indexOf("."),
+      },
+    ],
+  };
+}
+
+function LabeledStatement(node, source, output) {
+  return {
+    shadowMap: [
+      {
+        main:
+          node._sourceNode.label.end +
+          source
+            .slice(node._sourceNode.label.end, node._sourceNode.body.start)
+            .indexOf(":"),
+        shadow:
+          node.label.end +
+          output.slice(node.label.end, node.body.start).indexOf(":"),
       },
     ],
   };
@@ -239,6 +302,7 @@ function JSXAttribute(node, source, output) {
   };
 }
 
+// a ? b : c
 function ConditionalExpression(node, source, output) {
   return {
     shadowMap: [
