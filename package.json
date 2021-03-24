@@ -6,6 +6,7 @@
   "type": "commonjs",
   "scripts": {
     "bootstrap": "make bootstrap",
+    "viz:build": "BABEL_ENV=viz yarn gulp build",
     "codesandbox:build": "make build-no-bundle",
     "build": "make build",
     "fix": "make fix",

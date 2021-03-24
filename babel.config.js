@@ -74,7 +74,7 @@ module.exports = function (api) {
   ];
 
   switch (env) {
-    case "sandbox":
+    case "viz":
       convertESM = false;
       targets = {
         node: "14",
