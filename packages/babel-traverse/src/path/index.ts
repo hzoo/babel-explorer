@@ -243,6 +243,10 @@ NodePath.prototype.addMetadata = function (node, metaData) {
   } else {
     node._sourceNodes = this.node._sourceNodes.concat(newNode);
   }
+
+  if (this.node.original) {
+    node.original = this.node.original;
+  }
 };
 
 NodePath.prototype.mark = function (

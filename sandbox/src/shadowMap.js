@@ -1153,12 +1153,12 @@ function JSXIdentifier_to_StringLiteral(node) {
 }
 
 export default function makeShadowMap(node, source, output) {
+  if (!node.original) return -1;
+
   let fn = shadowMapFunctions[node.type];
   if (fn && node.original.type === node.type) {
     return fn(node, source, output);
   }
-
-  if (!node.original) return -1;
 
   if (
     node.type === "NumericLiteral" &&
