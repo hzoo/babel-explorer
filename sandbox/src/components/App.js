@@ -34,7 +34,6 @@ function mergeLoc(sourceAST, newAST, cb) {
   sourceAST.start = newAST.start;
   sourceAST.end = newAST.end;
   sourceAST.loc = newAST.loc;
-  sourceAST.original = newAST.original;
 
   for (let key of Object.keys(sourceAST).filter(k =>
     Babel.types.VISITOR_KEYS[sourceAST.type].includes(k)
@@ -52,7 +51,6 @@ function mergeLoc(sourceAST, newAST, cb) {
           element.start = newElement.start;
           element.end = newElement.end;
           element.loc = newElement.loc;
-          element.original = newElement.original;
 
           if (element._sourceNodes) {
             cb(element);
@@ -67,7 +65,6 @@ function mergeLoc(sourceAST, newAST, cb) {
       value.start = newValue.start;
       value.end = newValue.end;
       value.loc = newValue.loc;
-      value.original = newValue.original;
 
       if (value._sourceNodes) {
         cb(value);
@@ -316,15 +313,12 @@ function CompiledOutput({
         let map = makeShadowMap(node, source, code);
         if (map !== -1) {
           shadowIndexesMap.push({
-            ...(node?._sourceNode?.start !== undefined
+            ...(node?.original?.start !== undefined
               ? {
-                  sourceType: node._sourceNode.type,
-                  mainStart: node._sourceNode.start,
-                  mainEnd: node._sourceNode.end,
-                  source: source.slice(
-                    node._sourceNode.start,
-                    node._sourceNode.end
-                  ),
+                  sourceType: node.original.type,
+                  mainStart: node.original.start,
+                  mainEnd: node.original.end,
+                  source: source.slice(node.original.start, node.original.end),
                 }
               : {}),
             type: node.type,
