@@ -2,6 +2,7 @@ import React, { useState, useCallback, useEffect, useRef } from "react";
 import * as Babel from "@babel/core";
 import styled, { css } from "styled-components";
 import prettier from "prettier";
+import * as recast from "recast";
 
 import AST from "./AST";
 import { Editor } from "./Editor";
@@ -33,6 +34,7 @@ function mergeLoc(sourceAST, newAST, cb) {
   sourceAST.start = newAST.start;
   sourceAST.end = newAST.end;
   sourceAST.loc = newAST.loc;
+  sourceAST.original = newAST.original;
 
   for (let key of Object.keys(sourceAST).filter(k =>
     Babel.types.VISITOR_KEYS[sourceAST.type].includes(k)
@@ -50,6 +52,7 @@ function mergeLoc(sourceAST, newAST, cb) {
           element.start = newElement.start;
           element.end = newElement.end;
           element.loc = newElement.loc;
+          element.original = newElement.original;
 
           if (element._sourceNodes) {
             cb(element);
@@ -64,38 +67,12 @@ function mergeLoc(sourceAST, newAST, cb) {
       value.start = newValue.start;
       value.end = newValue.end;
       value.loc = newValue.loc;
+      value.original = newValue.original;
 
       if (value._sourceNodes) {
         cb(value);
       }
       mergeLoc(value, newValue, cb);
-    }
-  }
-}
-
-function traverseAST(sourceAST, cb) {
-  for (let key of Object.keys(sourceAST).filter(k =>
-    Babel.types.VISITOR_KEYS[sourceAST.type].includes(k)
-  )) {
-    let value = sourceAST[key];
-    if (!value) continue;
-
-    if (Array.isArray(value)) {
-      for (let i = 0; i < value.length; i++) {
-        if (typeof value[i] === "object") {
-          if (!value[i]) continue;
-
-          if (value[i]._sourceNode) {
-            cb(value[i]);
-          }
-          traverseAST(value[i], cb);
-        }
-      }
-    } else if (typeof value === "object") {
-      if (value._sourceNode) {
-        cb(value);
-      }
-      traverseAST(value, cb);
     }
   }
 }
@@ -270,12 +247,12 @@ function CompiledOutput({
       let transformedNodes = [];
       let ranges = [];
       let shadowIndexesMap = [];
+
       // retain the AST to use the metadata that has been added to nodes
-      let { code, ast, map } = Babel.transformFromAstSync(
-        sourceAST,
-        source,
-        processOptions(config, customPlugin)
-      );
+      let { code, ast, map } = Babel.transformFromAstSync(sourceAST, source, {
+        ...processOptions(config, customPlugin),
+        cloneInputAst: false,
+      });
       // prettify?
       // code = prettier.format(code, {
       //   parser() {
@@ -335,11 +312,11 @@ function CompiledOutput({
         }
       });
 
-      traverseAST(ast, node => {
+      Babel.types.traverseFast(ast, node => {
         let map = makeShadowMap(node, source, code);
         if (map !== -1) {
           shadowIndexesMap.push({
-            ...(node._sourceNode.start !== undefined
+            ...(node?._sourceNode?.start !== undefined
               ? {
                   sourceType: node._sourceNode.type,
                   mainStart: node._sourceNode.start,
@@ -500,10 +477,16 @@ export default function App({
 
   useEffect(() => {
     try {
-      let sourceAST = Babel.parse(
-        debouncedSource,
-        processOptions({}, enableCustomPlugin ?? debouncedPlugin)
-      );
+      let sourceAST = recast.parse(debouncedSource, {
+        parser: {
+          parse(source) {
+            return Babel.parse(
+              source,
+              processOptions({}, enableCustomPlugin ?? debouncedPlugin)
+            );
+          },
+        },
+      });
 
       setAST(sourceAST);
       setParserError(null);

@@ -200,6 +200,7 @@ async function initShiki() {
 
 initState()
   .then(() => initShiki())
+  .catch(e => console.error(e))
   .then(shiki => {
     ReactDOM.render(
       <React.StrictMode>

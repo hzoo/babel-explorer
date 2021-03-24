@@ -102,12 +102,18 @@ export default function initCanvas(
   let shadowChars = [];
 
   if (!shiki) {
-    mainChars = mainText
-      .split("")
-      .map(c => ({ c, x: 0, y: 0, color: c.match(/[a-zA-Z0-9_]/) }));
-    shadowChars = shadowText
-      .split("")
-      .map(c => ({ c, x: 0, y: 0, color: c.match(/[a-zA-Z0-9_]/) }));
+    mainChars = mainText.split("").map(c => ({
+      c,
+      x: 0,
+      y: 0,
+      color: "rgb(255,255,255)",
+    }));
+    shadowChars = shadowText.split("").map(c => ({
+      c,
+      x: 0,
+      y: 0,
+      color: "rgb(255,255,255)",
+    }));
   } else {
     const mainLines = shiki.codeToThemedTokens(
       mainText,

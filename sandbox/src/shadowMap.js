@@ -629,6 +629,7 @@ function CallExpression(node, source, output) {
   return { shadowMap };
 }
 
+// import.meta
 function MetaProperty(node, source, output) {
   return {
     shadowMap: [
@@ -1070,7 +1071,7 @@ function SequenceExpression(node, source, output) {
 
 function ArrayExpression(node, source, output) {
   let shadowMap = [
-    { main: node._sourceNode.start, shadow: node.start },
+    { main: node._sourceNode.start, shadow: node.start }, //
     {
       main: node._sourceNode.end - 1,
       shadow: node.end - 1,
@@ -1177,6 +1178,8 @@ export default function makeShadowMap(node, source, output) {
   if (fn && node._sourceNode.type === node.type) {
     return fn(node, source, output);
   }
+
+  if (!node._sourceNode) return -1;
 
   if (
     node.type === "NumericLiteral" &&
