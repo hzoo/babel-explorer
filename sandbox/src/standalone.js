@@ -115,6 +115,7 @@ export function processOptions(options, customPlugin) {
         "classPrivateMethods",
         "decimal",
       ],
+      tokens: true,
     },
     babelrc: false,
     configFile: false,

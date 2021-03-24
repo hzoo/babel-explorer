@@ -474,10 +474,11 @@ export default function App({
       let sourceAST = recast.parse(debouncedSource, {
         parser: {
           parse(source) {
-            return Babel.parse(
+            let result = Babel.parse(
               source,
               processOptions({}, enableCustomPlugin ?? debouncedPlugin)
             );
+            return result;
           },
         },
       });
