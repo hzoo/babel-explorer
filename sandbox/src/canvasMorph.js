@@ -334,7 +334,7 @@ export default function initCanvas(
     Animator.slowMode = e.shiftKey;
   };
 
-  document.onkeydown = function (e) {
+  document.onkeypress = function (e) {
     // auto play
     if (e.key === "@") {
       Animator.slowMode = true;

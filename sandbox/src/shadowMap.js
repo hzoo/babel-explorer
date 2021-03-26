@@ -1107,12 +1107,12 @@ function NumericSeparator_to_NumericLiteral(node) {
   let shadowMap = [];
 
   let index = -1;
-  let original = node.original.extra.raw;
-  [...Array(original.length)].forEach((_, i) => {
-    if (original[i] !== "_") {
+  let _sourceNode = node._sourceNode.extra.raw;
+  [...Array(_sourceNode.length)].forEach((_, i) => {
+    if (_sourceNode[i] !== "_") {
       index++;
       shadowMap.push({
-        main: node.original.start + i,
+        main: node._sourceNode.start + i,
         shadow: node.start + index,
       });
     }
@@ -1126,9 +1126,9 @@ function JSXAttribute_to_ObjectProperty(node, source, output) {
     transformMap: [
       {
         main:
-          node.original.name.end +
+          node._sourceNode.name.end +
           source
-            .slice(node.original.name.end, node.original.value.start)
+            .slice(node._sourceNode.name.end, node._sourceNode.value.start)
             .indexOf("="),
         shadow:
           node.key.end +
@@ -1143,16 +1143,147 @@ function JSXAttribute_to_ObjectProperty(node, source, output) {
 // <asdf> to asdf
 function JSXIdentifier_to_StringLiteral(node) {
   return {
-    shadowMap: [...Array(node.original.end - node.original.start).keys()].map(
-      i => ({
-        main: node.original.start + i,
-        shadow: node.start + 1 + i,
-      })
-    ),
+    shadowMap: [
+      ...Array(node._sourceNode.end - node._sourceNode.start).keys(),
+    ].map(i => ({
+      main: node._sourceNode.start + i,
+      shadow: node.start + 1 + i,
+    })),
+  };
+}
+
+function JSXIdentifier_to_Identifier(node) {
+  return {
+    shadowMap: [
+      ...Array(node._sourceNode.end - node._sourceNode.start).keys(),
+    ].map(i => ({
+      main: node._sourceNode.start + i,
+      shadow: node.start + i,
+    })),
   };
 }
 
 export default function makeShadowMap(node, source, output) {
+  if (node._sourceNode) {
+    if (
+      node.type === "NumericLiteral" &&
+      node?._sourceNode?.extra?.raw?.includes("_")
+    ) {
+      return NumericSeparator_to_NumericLiteral(node);
+    } else if (
+      node._sourceNode.type === "JSXAttribute" &&
+      node.type === "ObjectProperty"
+    ) {
+      return JSXAttribute_to_ObjectProperty(node, source, output);
+    } else if (
+      node._sourceNode.type === "JSXIdentifier" &&
+      node.type === "StringLiteral"
+    ) {
+      return JSXIdentifier_to_StringLiteral(node);
+    } else if (
+      node._sourceNode.type === "JSXText" &&
+      node.type === "StringLiteral"
+    ) {
+      let newStart = node.start + 1;
+      let newEnd = node.end - 1;
+      return {
+        shadowStart: newStart,
+        shadowEnd: newEnd,
+        shadowMap: [
+          ...Array(node._sourceNode.end - node._sourceNode.start).keys(),
+        ].map(main => ({
+          main: main + node._sourceNode.start,
+          shadow: main + newStart,
+        })),
+      };
+    } else if (node._sourceNode.type === "VariableDeclaration") {
+      let shadowMap = [];
+      let transformMap = [];
+
+      // const -> let/var
+      node._sourceNode.kind.split("").forEach((main, i) => {
+        // if (i < node.kind.length) {
+        let inc = Math.min(node.kind.length - 1, i);
+        transformMap.push({
+          main: node._sourceNode.start + i,
+          cMain: main,
+          shadow: node.start + inc,
+          cShadow: node.kind[i] || "",
+        });
+        // }
+      });
+
+      // var a = 1, b = 2
+      // get the = and ,
+      let oDeclarations = node?._sourceNode?.declarations;
+      let nDeclarations = node.declarations;
+      if (oDeclarations?.length === nDeclarations.length) {
+        nDeclarations.forEach((element, i) => {
+          if (nDeclarations[i].init) {
+            shadowMap.push({
+              ...(oDeclarations
+                ? {
+                    main:
+                      oDeclarations[i].id.end +
+                      source
+                        .slice(
+                          oDeclarations[i].id.end,
+                          oDeclarations[i].init.start
+                        )
+                        .indexOf("="),
+                  }
+                : {}),
+              shadow:
+                nDeclarations[i].id.end +
+                output
+                  .slice(nDeclarations[i].id.end, nDeclarations[i].init.start)
+                  .indexOf("="),
+            });
+          }
+          if (i < nDeclarations.length - 1) {
+            let beforeComma = nDeclarations[i].init ? "init" : "id";
+            shadowMap.push({
+              ...(oDeclarations
+                ? {
+                    main:
+                      oDeclarations[i][beforeComma].end +
+                      source
+                        .slice(
+                          oDeclarations[i][beforeComma].end,
+                          oDeclarations[i + 1].id.start
+                        )
+                        .indexOf(","),
+                  }
+                : {}),
+              shadow:
+                nDeclarations[i][beforeComma].end +
+                output
+                  .slice(
+                    nDeclarations[i][beforeComma].end,
+                    nDeclarations[i + 1].id.start
+                  )
+                  .indexOf(","),
+            });
+          }
+        });
+      }
+
+      if (
+        source[node._sourceNode.end - 1] === ";" &&
+        output[node.end - 1] === ";"
+      ) {
+        shadowMap.push({
+          main: node._sourceNode.end - 1,
+          shadow: node.end - 1,
+        });
+      }
+      return {
+        shadowMap,
+        transformMap,
+      };
+    }
+  }
+
   if (!node.original) return -1;
 
   let fn = shadowMapFunctions[node.type];
@@ -1160,117 +1291,12 @@ export default function makeShadowMap(node, source, output) {
     return fn(node, source, output);
   }
 
+  // why only in node.original and not node._sourceNode?
+  if (node.original.type === "JSXIdentifier" && node.type === "Identifier") {
+    return JSXIdentifier_to_Identifier(node);
+  }
+
   if (
-    node.type === "NumericLiteral" &&
-    node?.original?.extra?.raw?.includes("_")
-  ) {
-    return NumericSeparator_to_NumericLiteral(node);
-  } else if (
-    node.original.type === "JSXAttribute" &&
-    node.type === "ObjectProperty"
-  ) {
-    return JSXAttribute_to_ObjectProperty(node, source, output);
-  } else if (
-    node.original.type === "JSXIdentifier" &&
-    node.type === "StringLiteral"
-  ) {
-    return JSXIdentifier_to_StringLiteral(node);
-  } else if (
-    node.original.type === "JSXText" &&
-    node.type === "StringLiteral"
-  ) {
-    let newStart = node.start + 1;
-    let newEnd = node.end - 1;
-    return {
-      shadowStart: newStart,
-      shadowEnd: newEnd,
-      shadowMap: [...Array(node.original.end - node.original.start).keys()].map(
-        main => ({
-          main: main + node.original.start,
-          shadow: main + newStart,
-        })
-      ),
-    };
-  } else if (node.original.type === "VariableDeclaration") {
-    let shadowMap = [];
-    let transformMap = [];
-
-    // const -> let/var
-    node.original.kind.split("").forEach((main, i) => {
-      // if (i < node.kind.length) {
-      let inc = Math.min(node.kind.length - 1, i);
-      transformMap.push({
-        main: node.original.start + i,
-        cMain: main,
-        shadow: node.start + inc,
-        cShadow: node.kind[i] || "",
-      });
-      // }
-    });
-
-    // var a = 1, b = 2
-    // get the = and ,
-    let oDeclarations = node?.original?.declarations;
-    let nDeclarations = node.declarations;
-    if (oDeclarations?.length === nDeclarations.length) {
-      nDeclarations.forEach((element, i) => {
-        if (nDeclarations[i].init) {
-          shadowMap.push({
-            ...(oDeclarations
-              ? {
-                  main:
-                    oDeclarations[i].id.end +
-                    source
-                      .slice(
-                        oDeclarations[i].id.end,
-                        oDeclarations[i].init.start
-                      )
-                      .indexOf("="),
-                }
-              : {}),
-            shadow:
-              nDeclarations[i].id.end +
-              output
-                .slice(nDeclarations[i].id.end, nDeclarations[i].init.start)
-                .indexOf("="),
-          });
-        }
-        if (i < nDeclarations.length - 1) {
-          let beforeComma = nDeclarations[i].init ? "init" : "id";
-          shadowMap.push({
-            ...(oDeclarations
-              ? {
-                  main:
-                    oDeclarations[i][beforeComma].end +
-                    source
-                      .slice(
-                        oDeclarations[i][beforeComma].end,
-                        oDeclarations[i + 1].id.start
-                      )
-                      .indexOf(","),
-                }
-              : {}),
-            shadow:
-              nDeclarations[i][beforeComma].end +
-              output
-                .slice(
-                  nDeclarations[i][beforeComma].end,
-                  nDeclarations[i + 1].id.start
-                )
-                .indexOf(","),
-          });
-        }
-      });
-    }
-
-    if (source[node.original.end - 1] === ";" && output[node.end - 1] === ";") {
-      shadowMap.push({ main: node.original.end - 1, shadow: node.end - 1 });
-    }
-    return {
-      shadowMap,
-      transformMap,
-    };
-  } else if (
     // same type
     // preventing something like unhandled node (ObjectPattern -> Identifier)
     node.type === node.original.type &&

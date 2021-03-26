@@ -312,15 +312,31 @@ function CompiledOutput({
       Babel.types.traverseFast(ast, node => {
         let map = makeShadowMap(node, source, code);
         if (map !== -1) {
+          let temp = {};
+
+          if (node?._sourceNode?.start !== undefined) {
+            temp = {
+              sourceType: node._sourceNode.type,
+              mainStart: node._sourceNode.start,
+              mainEnd: node._sourceNode.end,
+              source: source.slice(
+                node._sourceNode.start,
+                node._sourceNode.end
+              ),
+            };
+          } else if (node?.original?.start !== undefined) {
+            temp = {
+              sourceType: node.original.type,
+              mainStart: node.original.start,
+              mainEnd: node.original.end,
+              source: source.slice(node.original.start, node.original.end),
+            };
+          } else {
+            // new
+          }
+
           shadowIndexesMap.push({
-            ...(node?.original?.start !== undefined
-              ? {
-                  sourceType: node.original.type,
-                  mainStart: node.original.start,
-                  mainEnd: node.original.end,
-                  source: source.slice(node.original.start, node.original.end),
-                }
-              : {}),
+            ...temp,
             type: node.type,
             shadowStart: node.start,
             shadowEnd: node.end,

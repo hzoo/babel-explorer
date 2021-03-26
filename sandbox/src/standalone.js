@@ -102,6 +102,69 @@ export function processOptions(options, customPlugin) {
     plugins.unshift(compileModule(customPlugin));
   }
 
+  const handledVisitors = [
+    "ArrayExpression",
+    "AssignmentExpression",
+    "BinaryExpression",
+    "BlockStatement",
+    "BreakStatement",
+    "CallExpression",
+    "CatchClause",
+    "ConditionalExpression",
+    "ContinueStatement",
+    "DebuggerStatement",
+    "Directive",
+    "EmptyStatement",
+    "ExpressionStatement",
+    "FunctionDeclaration",
+    "Identifier",
+    "IfStatement",
+    "Import",
+    "JSXAttribute",
+    "LabeledStatement",
+    "Literal",
+    "LogicalExpression",
+    "MemberExpression",
+    "MetaProperty",
+    // "NewExpression",
+    "ObjectExpression",
+    "ObjectProperty",
+    "SequenceExpression",
+    "SpreadElement",
+    "SwitchCase",
+    "SwitchStatement",
+    "ThisExpression",
+    "ThrowStatement",
+    "TryStatement",
+    "ReturnStatement",
+    "UnaryExpression",
+    "UpdateExpression",
+    "VariableDeclaration",
+  ].join("|");
+
+  // TODO: test
+  plugins.unshift(function customPlugin2({ types: t }) {
+    return {
+      name: "mark-original-loc",
+      visitor: {
+        [handledVisitors](path) {
+          if (!path.node.original) {
+            path.node.original = {
+              ...t.cloneNode(path.node, true),
+              _newNode: true,
+            };
+          }
+          if (!path.node._sourceNode) {
+            path.node._sourceNode = path.node._sourceNodes?.[0] || {
+              ...t.cloneNode(path.node, true),
+              _newNode: true,
+            };
+          }
+        },
+      },
+    };
+  });
+
   return {
     ast: true,
     // sourceMaps: "both",

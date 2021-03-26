@@ -66,17 +66,16 @@ const profile = (
 //   f() {},
 //   x
 // };`;
-SOURCE = `
+// SOURCE = `
 
-
-if (a) asdf;
-if (a) { asdf; }
-if (a) a; else b;
-if (a) a; else { b; }
-if (a) { a; } else { b; }
-if (a) { a; } else { b; }
-if (a) a; else if (b) b; else if (c) c; else d;
-`;
+// if (a) asdf;
+// if (a) { asdf; }
+// if (a) a; else b;
+// if (a) a; else { b; }
+// if (a) { a; } else { b; }
+// if (a) { a; } else { b; }
+// if (a) a; else if (b) b; else if (c) c; else d;
+// `;
 let CONFIG = [
   {
     presets: [
