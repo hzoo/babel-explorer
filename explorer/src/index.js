@@ -169,7 +169,7 @@ async function initState() {
   if (!data) return;
 
   GIST = true;
-  const key = `babel_sandbox:${data.id}${
+  const key = `babel_explorer:${data.id}${
     data.version ? `:${data.version}` : ""
   }`;
   const stored = window.sessionStorage.getItem(key);

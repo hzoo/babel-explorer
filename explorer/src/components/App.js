@@ -14,7 +14,7 @@ import initCanvas from "../canvasMorph";
 window.babel = Babel;
 
 // TODO: change to babel/babel eventually
-const githubPrefix = `https://github.com/hzoo/babel/blob/sandbox/packages/babel-`;
+const githubPrefix = `https://github.com/hzoo/babel-explorer/blob/explorer/packages/babel-`;
 
 function getTargets(config) {
   if (!config.presets) return "-";

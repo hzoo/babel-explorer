@@ -27,7 +27,7 @@ eslint/*/lib
 eslint/*/node_modules
 eslint/*/test/fixtures
 
-sandbox/src/
+explorer/src/
 
 test/runtime-integration/*/output.js
 test/runtime-integration/*/output-absolute.js

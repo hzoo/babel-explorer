@@ -6,7 +6,7 @@
   "type": "commonjs",
   "scripts": {
     "bootstrap": "make bootstrap",
-    "viz:build": "BABEL_ENV=viz yarn gulp build",
+    "explorer:build": "BABEL_ENV=explorer yarn gulp build",
     "codesandbox:build": "make build-no-bundle",
     "build": "make build",
     "fix": "make fix",
@@ -75,7 +75,7 @@
     "typescript": "~4.2.3"
   },
   "workspaces": [
-    "sandbox",
+    "explorer",
     "codemods/*",
     "eslint/*",
     "packages/*",

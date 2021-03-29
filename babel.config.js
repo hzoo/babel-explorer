@@ -7,7 +7,7 @@ function normalize(src) {
   return src.replace(/\//, pathUtils.sep);
 }
 
-const metadataPlugin = require("./sandbox/src/metadataPlugin");
+const metadataPlugin = require("./explorer/src/metadataPlugin");
 
 module.exports = function (api) {
   const env = api.env();
@@ -74,7 +74,7 @@ module.exports = function (api) {
   ];
 
   switch (env) {
-    case "viz":
+    case "explorer":
       convertESM = false;
       targets = {
         node: "14",
