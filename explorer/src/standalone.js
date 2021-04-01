@@ -167,7 +167,7 @@ export function processOptions(options, customPlugin) {
 
   return {
     ast: true,
-    // sourceMaps: "both",
+    sourceMaps: false,
     filename: "test.js",
     parserOpts: {
       plugins: [

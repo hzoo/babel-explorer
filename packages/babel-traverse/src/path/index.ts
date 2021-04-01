@@ -244,7 +244,7 @@ NodePath.prototype.addMetadata = function (node, metaData) {
     node._sourceNodes = this.node._sourceNodes.concat(newNode);
   }
 
-  if (this.node.original) {
+  if (this?.node?.original) {
     node.original = this.node.original;
   }
 };

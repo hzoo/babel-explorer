@@ -492,7 +492,11 @@ export default function App({
           parse(source) {
             let result = Babel.parse(
               source,
-              processOptions({}, enableCustomPlugin ?? debouncedPlugin)
+              // TODO: could have parse error without config to enable syntax..
+              processOptions(
+                babelConfig[0],
+                enableCustomPlugin ?? debouncedPlugin
+              )
             );
             return result;
           },
