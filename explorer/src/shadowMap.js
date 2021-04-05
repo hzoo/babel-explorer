@@ -1270,22 +1270,22 @@ function CallExpression(node, source, output) {
           ? node.original.callee.end +
             source
               .slice(node.original.callee.end, node.original.end)
-              .indexOf(")")
+              .lastIndexOf(")")
           : node.original.arguments[node.original.arguments.length - 1].end +
             source
               .slice(
                 node.original.arguments[node.original.arguments.length - 1].end,
                 node.original.end
               )
-              .indexOf(")"),
+              .lastIndexOf(")"),
       shadow:
         node.arguments.length === 0
           ? node.callee.end +
-            output.slice(node.callee.end, node.end).indexOf(")")
+            output.slice(node.callee.end, node.end).lastIndexOf(")")
           : node.arguments[node.arguments.length - 1].end +
             output
               .slice(node.arguments[node.arguments.length - 1].end, node.end)
-              .indexOf(")"),
+              .lastIndexOf(")"),
     },
   ];
   node.arguments.forEach((argument, i) => {
@@ -2039,7 +2039,22 @@ export default function makeShadowMap(node, source, output) {
 
   let fn = shadowMapFunctions[node.type];
   if (fn && node.original.type === node.type) {
-    return fn(node, source, output);
+    let result = fn(node, source, output);
+
+    if (node?.extra?.parenthesized) {
+      result.shadowMap.push(
+        {
+          main: node.original.start - 1,
+          shadow: node.start - 1,
+        },
+        {
+          main: node.original.end,
+          shadow: node.end,
+        }
+      );
+    }
+
+    return result;
   }
 
   // why only in node.original and not node._sourceNode?
