@@ -1,7 +1,9 @@
 // https://github.com/babel/babel/blob/main/packages/babel-parser/ast/spec.md
 export const shadowMapFunctions = {
   ArrayExpression,
+  ArrayPattern,
   // ArrowFunctionExpression,
+  AssignmentPattern,
   AwaitExpression,
   AssignmentExpression,
   BinaryExpression,
@@ -32,11 +34,13 @@ export const shadowMapFunctions = {
   NewExpression,
   ObjectExpression,
   ObjectMethod,
+  ObjectPattern,
   ObjectProperty,
   OptionalCallExpression,
   OptionalMemberExpression,
   // ParenthesizedExpression,
   // RecordExpression,
+  RestElement,
   SequenceExpression,
   SpreadElement,
   StringLiteral,
@@ -414,7 +418,6 @@ function ThrowStatement(...args) {
 
 // switch (expr) {}
 // switch (a) { case 'a': a; case 'b': b; }
-// TODO: account for parens (check node.extra.parenthesized)
 function SwitchStatement(node, source, output) {
   // () {}
   let shadowMap = [
@@ -603,14 +606,8 @@ function TryStatement(node, source, output) {
   };
 }
 
-/*
-interface CatchClause <: Node {
-  type: "CatchClause";
-  param?: Pattern;
-  body: BlockStatement;
-}
-*/
-// TODO: Optional Catch Binding
+// try {} catch {}
+// try {} catch (e) {}
 function CatchClause(node, source, output) {
   let shadowMap = [];
 
@@ -1444,6 +1441,12 @@ function LabeledStatement(node, source, output) {
   };
 }
 
+// [...a] = [1]
+function RestElement(node, source, output) {
+  return SpreadElement(node, source, output);
+}
+
+// var a = [...a]
 function SpreadElement(node, source, output) {
   let shadowMap = [...Array(3)].map((_, i) => {
     return {
@@ -1752,7 +1755,6 @@ function LogicalExpression(node, source, output) {
   };
 }
 
-// TODO:
 // x **= y;
 // x &&= y;
 // x ||= y;
@@ -1773,6 +1775,24 @@ function AssignmentExpression(node, source, output) {
           i,
       };
     }),
+  };
+}
+
+// ({a = 1} = user)
+function AssignmentPattern(node, source, output) {
+  return {
+    shadowMap: [
+      {
+        main:
+          node.original.left.end +
+          source
+            .slice(node.original.left.end, node.original.right.start)
+            .indexOf("="),
+        shadow:
+          node.left.end +
+          output.slice(node.left.end, node.right.start).indexOf("="),
+      },
+    ],
   };
 }
 
@@ -1815,6 +1835,11 @@ function ObjectProperty(node, source, output) {
   };
 }
 
+// let { a, ...b } = c;
+function ObjectPattern(node, source, output) {
+  return ObjectExpression(node, source, output);
+}
+
 function ObjectExpression(node, source, output) {
   let shadowMap = [
     { main: node.original.start, shadow: node.start },
@@ -1826,16 +1851,11 @@ function ObjectExpression(node, source, output) {
         main:
           node.original.properties[i].end +
           source
-            .slice(
-              node.original.properties[i].end,
-              node.original.properties[i + 1].key.start
-            )
+            .slice(node.original.properties[i].end, node.original.end)
             .indexOf(","),
         shadow:
           node.properties[i].end +
-          output
-            .slice(node.properties[i].end, node.properties[i + 1].key.start)
-            .indexOf(","),
+          output.slice(node.properties[i].end, node.end).indexOf(","),
       });
     }
   });
@@ -1898,6 +1918,11 @@ function SequenceExpression(node, source, output) {
   };
 }
 
+// [a, b, ...rest] = [10, 20, 30];
+function ArrayPattern(node, source, output) {
+  return ArrayExpression(node, source, output);
+}
+
 function ArrayExpression(node, source, output) {
   let shadowMap = [
     { main: node.original.start, shadow: node.start }, //
@@ -1908,25 +1933,24 @@ function ArrayExpression(node, source, output) {
   ];
   node.elements.forEach((element, i) => {
     if (i < node.original.elements.length - 1) {
-      if (node.original.elements[i + 1] === null) {
+      if (
+        node.original.elements[i] === null ||
+        node.original.elements[i + 1] === null
+      ) {
         // TODO: sparse arrays
-        throw new Error("TODO: doesn't handle sparse arrays [1,,2] yet");
+        console.error("TODO: doesn't handle sparse arrays [1,,2] yet");
+      } else {
+        shadowMap.push({
+          main:
+            node.original.elements[i].end +
+            source
+              .slice(node.original.elements[i].end, node.original.end)
+              .indexOf(","),
+          shadow:
+            node.elements[i].end +
+            output.slice(node.elements[i].end, node.end).indexOf(","),
+        });
       }
-      shadowMap.push({
-        main:
-          node.original.elements[i].end +
-          source
-            .slice(
-              node.original.elements[i].end,
-              node.original.elements[i + 1].start
-            )
-            .indexOf(","),
-        shadow:
-          node.elements[i].end +
-          output
-            .slice(node.elements[i].end, node.elements[i + 1].start)
-            .indexOf(","),
-      });
     }
   });
   let last = node.elements.length - 1;
