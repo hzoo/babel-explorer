@@ -381,10 +381,16 @@ export default function initCanvas(
   function setShadows(mainChars, mainIndex, shadowIndex) {
     if (mainChars[mainIndex].shadowIndex === undefined) {
       mainChars[mainIndex].shadowIndex = shadowIndex;
-    } else if (!mainChars[mainIndex].shadows) {
-      mainChars[mainIndex].shadows = [shadowIndex];
     } else {
-      mainChars[mainIndex].shadows.push(shadowIndex);
+      if (mainChars[mainIndex].shadowIndex === shadowIndex) return;
+
+      if (!mainChars[mainIndex].shadows) {
+        mainChars[mainIndex].shadows = [shadowIndex];
+      } else {
+        if (!mainChars[mainIndex].shadows.includes(shadowIndex)) {
+          mainChars[mainIndex].shadows.push(shadowIndex);
+        }
+      }
     }
   }
 
