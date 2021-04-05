@@ -24,7 +24,7 @@ export const shadowMapFunctions = {
   LogicalExpression,
   MemberExpression,
   MetaProperty,
-  // NewExpression,
+  NewExpression,
   ObjectExpression,
   ObjectMethod,
   ObjectProperty,
@@ -1202,7 +1202,7 @@ function StringLiteral(node, source, output) {
 }
 
 function NewExpression(node, source, output) {
-  // let shadowMap = CallExpression(node, source, output).shadowMap;
+  let shadowMap = CallExpression(node, source, output).shadowMap;
 
   [...Array("new".length)].forEach((_, i) => {
     shadowMap.push({
@@ -1243,51 +1243,66 @@ function OptionalCallExpression(node, source, output) {
 
 // a(a,b,c)
 function CallExpression(node, source, output) {
-  let shadowMap = [
-    {
-      main:
-        node.original.callee.end +
-        source
-          .slice(
-            node.original.callee.end,
-            node.original.arguments.length === 0
-              ? node.original.end
-              : node.original.arguments[0].start
-          )
-          .indexOf("("),
-      shadow:
-        node.callee.end +
-        output
-          .slice(
-            node.callee.end,
-            node.arguments.length === 0 ? node.end : node.arguments[0].start
-          )
-          .indexOf("("),
-    },
-    {
-      main:
-        node.original.arguments.length === 0
-          ? node.original.callee.end +
-            source
-              .slice(node.original.callee.end, node.original.end)
-              .lastIndexOf(")")
-          : node.original.arguments[node.original.arguments.length - 1].end +
-            source
-              .slice(
-                node.original.arguments[node.original.arguments.length - 1].end,
-                node.original.end
-              )
-              .lastIndexOf(")"),
-      shadow:
-        node.arguments.length === 0
-          ? node.callee.end +
-            output.slice(node.callee.end, node.end).lastIndexOf(")")
-          : node.arguments[node.arguments.length - 1].end +
-            output
-              .slice(node.arguments[node.arguments.length - 1].end, node.end)
-              .lastIndexOf(")"),
-    },
-  ];
+  // for NewExpression
+  let hasParen = source
+    .slice(
+      node.original.callee.end,
+      node.original.arguments.length === 0
+        ? node.original.end
+        : node.original.arguments[0].start
+    )
+    .indexOf("(");
+
+  let shadowMap = [];
+
+  if (hasParen !== -1) {
+    shadowMap.push(
+      {
+        main:
+          node.original.callee.end +
+          source
+            .slice(
+              node.original.callee.end,
+              node.original.arguments.length === 0
+                ? node.original.end
+                : node.original.arguments[0].start
+            )
+            .indexOf("("),
+        shadow:
+          node.callee.end +
+          output
+            .slice(
+              node.callee.end,
+              node.arguments.length === 0 ? node.end : node.arguments[0].start
+            )
+            .indexOf("("),
+      },
+      {
+        main:
+          node.original.arguments.length === 0
+            ? node.original.callee.end +
+              source
+                .slice(node.original.callee.end, node.original.end)
+                .lastIndexOf(")")
+            : node.original.arguments[node.original.arguments.length - 1].end +
+              source
+                .slice(
+                  node.original.arguments[node.original.arguments.length - 1]
+                    .end,
+                  node.original.end
+                )
+                .lastIndexOf(")"),
+        shadow:
+          node.arguments.length === 0
+            ? node.callee.end +
+              output.slice(node.callee.end, node.end).lastIndexOf(")")
+            : node.arguments[node.arguments.length - 1].end +
+              output
+                .slice(node.arguments[node.arguments.length - 1].end, node.end)
+                .lastIndexOf(")"),
+      }
+    );
+  }
   node.arguments.forEach((argument, i) => {
     if (i < node.arguments.length - 1) {
       shadowMap.push({
