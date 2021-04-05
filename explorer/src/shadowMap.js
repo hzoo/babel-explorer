@@ -7,7 +7,7 @@ export const shadowMapFunctions = {
   AwaitExpression,
   AssignmentExpression,
   BinaryExpression,
-  // BindExpression,
+  BindExpression,
   BlockStatement,
   BreakStatement,
   CallExpression,
@@ -1775,6 +1775,39 @@ function AssignmentExpression(node, source, output) {
           i,
       };
     }),
+  };
+}
+
+// ::a.b;
+// a::b.c;
+function BindExpression(node, source, output) {
+  let shadowMap = [];
+
+  let nodeHasObject = node => (node.object ? node.object.end : node.start);
+
+  let colonMain =
+    nodeHasObject(node.original) +
+    source
+      .slice(nodeHasObject(node.original), node.original.callee.start)
+      .indexOf(":");
+
+  let colonShadow =
+    nodeHasObject(node) +
+    output.slice(nodeHasObject(node), node.callee.start).indexOf(":");
+
+  shadowMap.push(
+    {
+      main: colonMain,
+      shadow: colonShadow,
+    },
+    {
+      main: colonMain + 1,
+      shadow: colonShadow + 1,
+    }
+  );
+
+  return {
+    shadowMap,
   };
 }
 
