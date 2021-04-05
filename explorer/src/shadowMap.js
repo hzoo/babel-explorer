@@ -28,6 +28,8 @@ export const shadowMapFunctions = {
   ObjectExpression,
   ObjectMethod,
   ObjectProperty,
+  OptionalCallExpression,
+  OptionalMemberExpression,
   SequenceExpression,
   SpreadElement,
   StringLiteral,
@@ -778,6 +780,12 @@ function FunctionDeclaration(node, source, output) {
   };
 }
 
+// var foo7 = function* foo7() {};
+// var foo8 = function foo8() {};
+// var foo9 = async function foo9() {};
+// var foo10 = function* () {};
+// var foo11 = function () {};
+// var foo12 = async function () {};
 function FunctionExpression(node, source, output) {
   let nodeOrId = node => (node.id ? node.id.end : node.start);
 
@@ -1208,6 +1216,31 @@ function NewExpression(node, source, output) {
   };
 }
 
+// foo?.();
+function OptionalCallExpression(node, source, output) {
+  let result = CallExpression(node, source, output);
+
+  if (node.optional) {
+    let questionMain =
+      node.original.callee.end +
+      source.slice(node.original.callee.end, node.original.end).indexOf("?.");
+    let shadowMain =
+      node.callee.end + output.slice(node.callee.end, node.end).indexOf("?.");
+    result.shadowMap.push(
+      {
+        main: questionMain,
+        shadow: shadowMain,
+      },
+      {
+        main: questionMain + 1,
+        shadow: shadowMain + 1,
+      }
+    );
+  }
+
+  return result;
+}
+
 // a(a,b,c)
 function CallExpression(node, source, output) {
   let shadowMap = [
@@ -1519,6 +1552,67 @@ function MemberExpression(node, source, output) {
       ],
     };
   }
+}
+
+// foo?.bar;
+// foo?.["bar"];
+// foo?.bar["foo"];
+// foo?.bar.foo;
+function OptionalMemberExpression(node, source, output) {
+  let shadowMap = [];
+
+  let dotMain =
+    node.original.object.end +
+    source
+      .slice(node.original.object.end, node.original.property.start)
+      .indexOf(".");
+
+  let dotShadow =
+    node.object.end +
+    output.slice(node.object.end, node.property.start).indexOf(".");
+
+  if (!node.computed || node.optional) {
+    shadowMap.push({
+      main: dotMain,
+      shadow: dotShadow,
+    });
+  }
+
+  if (node.optional) {
+    shadowMap.push({
+      main: dotMain - 1,
+      shadow: dotShadow - 1,
+    });
+  }
+
+  if (node.computed) {
+    shadowMap.push(
+      {
+        main:
+          node.original.object.end +
+          source
+            .slice(node.original.object.end, node.original.property.start)
+            .indexOf("["),
+        shadow:
+          node.object.end +
+          output.slice(node.object.end, node.property.start).indexOf("["),
+      },
+      {
+        main:
+          node.original.property.end +
+          source
+            .slice(node.original.property.end, node.original.end)
+            .indexOf("]"),
+        shadow:
+          node.property.end +
+          output.slice(node.property.end, node.end).indexOf("]"),
+      }
+    );
+  }
+
+  return {
+    shadowMap,
+  };
 }
 
 function BinaryExpression(node, source, output) {
