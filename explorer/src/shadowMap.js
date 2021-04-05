@@ -1,6 +1,7 @@
 // https://github.com/babel/babel/blob/main/packages/babel-parser/ast/spec.md
 export const shadowMapFunctions = {
   ArrayExpression,
+  AwaitExpression,
   AssignmentExpression,
   BinaryExpression,
   BlockStatement,
@@ -38,6 +39,7 @@ export const shadowMapFunctions = {
   UpdateExpression,
   WhileStatement,
   // WithStatement,
+  YieldExpression,
 };
 
 // for (;;) {}
@@ -768,6 +770,46 @@ function FunctionDeclaration(node, source, output) {
       shadow: node.start + output.slice(node.start, node.id.start).indexOf("*"),
     });
   }
+
+  return {
+    shadowMap,
+  };
+}
+
+function YieldExpression(node, source, output) {
+  // yield
+  let shadowMap = [...Array(5)].map((_, i) => {
+    return {
+      main: node.original.start + i,
+      shadow: node.start + i,
+    };
+  });
+
+  if (node.delegate) {
+    shadowMap.push({
+      main:
+        node.original.start +
+        source
+          .slice(node.original.start, node.original.argument.start)
+          .indexOf("*"),
+      shadow:
+        node.start + output.slice(node.start, node.argument.start).indexOf("*"),
+    });
+  }
+
+  return {
+    shadowMap,
+  };
+}
+
+function AwaitExpression(node, source, output) {
+  // yield
+  let shadowMap = [...Array(5)].map((_, i) => {
+    return {
+      main: node.original.start + i,
+      shadow: node.start + i,
+    };
+  });
 
   return {
     shadowMap,
