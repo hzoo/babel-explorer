@@ -167,6 +167,7 @@ export function processOptions(options, customPlugin) {
 
   return {
     ast: true,
+    // sourceType: "unambiguous",
     sourceMaps: false,
     filename: "test.js",
     parserOpts: {

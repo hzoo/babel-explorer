@@ -55,7 +55,7 @@ export const shadowMapFunctions = {
   UnaryExpression,
   UpdateExpression,
   WhileStatement,
-  // WithStatement,
+  WithStatement,
   YieldExpression,
 };
 
@@ -313,6 +313,44 @@ function WhileStatement(node, source, output) {
       shadow:
         node.test.end +
         output.slice(node.test.end, node.body.start).indexOf(")"),
+    }
+  );
+
+  return {
+    shadowMap,
+  };
+}
+
+// with (a) {}
+function WithStatement(node, source, output) {
+  let shadowMap = [...Array(4)].map((_, i) => {
+    return {
+      main: node.original.start + i,
+      shadow: node.start + i,
+    };
+  });
+
+  shadowMap.push(
+    // (
+    {
+      main:
+        node.original.start +
+        source
+          .slice(node.original.start, node.original.object.start)
+          .indexOf("("),
+      shadow:
+        node.start + output.slice(node.start, node.object.start).indexOf("("),
+    },
+    // )
+    {
+      main:
+        node.original.object.end +
+        source
+          .slice(node.original.object.end, node.original.body.start)
+          .indexOf(")"),
+      shadow:
+        node.object.end +
+        output.slice(node.object.end, node.body.start).indexOf(")"),
     }
   );
 
