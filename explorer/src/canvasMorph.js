@@ -340,6 +340,7 @@ export default function initCanvas(
       Animator.slowMode = true;
       if (!continous) {
         continous = setInterval(() => {
+          Animator.rate = 0.5;
           if (Animator.target === 0) {
             Animator.target = 1;
           } else if (Animator.target === 1) {
@@ -413,7 +414,7 @@ export default function initCanvas(
           } else {
             if (main !== false) {
               console.error(
-                `mainChars[main] undefined: ${JSON.stringify(value)}`
+                `mainChars[main] ${main} undefined: ${JSON.stringify(value)}`
               );
             }
           }

@@ -9,6 +9,7 @@ export const shadowMapFunctions = {
   CatchClause,
   ConditionalExpression,
   ContinueStatement,
+  DoWhileStatement,
   ExpressionStatement,
   IfStatement,
   FunctionDeclaration,
@@ -31,8 +32,105 @@ export const shadowMapFunctions = {
   ReturnStatement,
   UnaryExpression,
   UpdateExpression,
+  WhileStatement,
   // WithStatement,
 };
+
+function WhileStatement(node, source, output) {
+  let shadowMap = [...Array(5)].map((_, i) => {
+    return {
+      main: node.original.start + i,
+      shadow: node.start + i,
+    };
+  });
+
+  shadowMap.push(
+    // (
+    {
+      main:
+        node.original.start +
+        source
+          .slice(node.original.start, node.original.test.start)
+          .indexOf("("),
+      shadow:
+        node.start + output.slice(node.start, node.test.start).indexOf("("),
+    },
+    // )
+    {
+      main:
+        node.original.test.end +
+        source
+          .slice(node.original.test.end, node.original.body.start)
+          .indexOf(")"),
+      shadow:
+        node.test.end +
+        output.slice(node.test.end, node.body.start).indexOf(")"),
+    }
+  );
+
+  return {
+    shadowMap,
+  };
+}
+
+function DoWhileStatement(node, source, output) {
+  let shadowMap = [
+    // d
+    {
+      main: node.original.start,
+      shadow: node.start,
+    },
+    // o
+    {
+      main: node.original.start + 1,
+      shadow: node.start + 1,
+    },
+    // (
+    {
+      main:
+        node.original.body.end +
+        source
+          .slice(node.original.body.end, node.original.test.start)
+          .indexOf("("),
+      shadow:
+        node.body.end +
+        output.slice(node.body.end, node.test.start).indexOf("("),
+    },
+    // )
+    {
+      main:
+        node.original.test.end +
+        source.slice(node.original.test.end, node.original.end).indexOf(")"),
+      shadow:
+        node.test.end + output.slice(node.test.end, node.end).indexOf(")"),
+    },
+  ];
+
+  let whileSource =
+    node.original.body.end +
+    source
+      .slice(node.original.body.end, node.original.test.start)
+      .indexOf("while");
+  let whileOutput =
+    node.body.end +
+    output.slice(node.body.end, node.test.start).indexOf("while");
+
+  for (let i = 0; i < 5; i++) {
+    shadowMap.push({
+      main: whileSource + i,
+      shadow: whileOutput + i,
+    });
+  }
+
+  // ;
+  if (source[node.original.end - 1] === ";" && output[node.end - 1] === ";") {
+    shadowMap.push({ main: node.original.end - 1, shadow: node.end - 1 });
+  }
+
+  return {
+    shadowMap,
+  };
+}
 
 function buildLabelStatement(node, source, output, prefix) {
   // prefix (e.g. return)
