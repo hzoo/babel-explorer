@@ -10,6 +10,7 @@ export const shadowMapFunctions = {
   CatchClause,
   ConditionalExpression,
   ContinueStatement,
+  DoExpression,
   DoWhileStatement,
   ExpressionStatement,
   IfStatement,
@@ -30,6 +31,7 @@ export const shadowMapFunctions = {
   ObjectProperty,
   OptionalCallExpression,
   OptionalMemberExpression,
+  // ParenthesizedExpression,
   SequenceExpression,
   SpreadElement,
   StringLiteral,
@@ -1061,8 +1063,8 @@ function ObjectMethod(node, source, output) {
   };
 }
 
+// yield 1;
 function YieldExpression(node, source, output) {
-  // yield
   let shadowMap = [...Array(5)].map((_, i) => {
     return {
       main: node.original.start + i,
@@ -1087,9 +1089,23 @@ function YieldExpression(node, source, output) {
   };
 }
 
+// await 1;
 function AwaitExpression(node, source, output) {
-  // yield
   let shadowMap = [...Array(5)].map((_, i) => {
+    return {
+      main: node.original.start + i,
+      shadow: node.start + i,
+    };
+  });
+
+  return {
+    shadowMap,
+  };
+}
+
+// (do {});
+function DoExpression(node, source, output) {
+  let shadowMap = [...Array(2)].map((_, i) => {
     return {
       main: node.original.start + i,
       shadow: node.start + i,
