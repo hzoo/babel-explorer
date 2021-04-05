@@ -1,15 +1,18 @@
 // https://github.com/babel/babel/blob/main/packages/babel-parser/ast/spec.md
 export const shadowMapFunctions = {
   ArrayExpression,
+  // ArrowFunctionExpression,
   AwaitExpression,
   AssignmentExpression,
   BinaryExpression,
+  // BindExpression,
   BlockStatement,
   BreakStatement,
   CallExpression,
   CatchClause,
   ConditionalExpression,
   ContinueStatement,
+  // Decorator,
   DoExpression,
   DoWhileStatement,
   ExpressionStatement,
@@ -25,6 +28,7 @@ export const shadowMapFunctions = {
   LogicalExpression,
   MemberExpression,
   MetaProperty,
+  // ModuleExpression,
   NewExpression,
   ObjectExpression,
   ObjectMethod,
@@ -32,12 +36,15 @@ export const shadowMapFunctions = {
   OptionalCallExpression,
   OptionalMemberExpression,
   // ParenthesizedExpression,
+  // RecordExpression,
   SequenceExpression,
   SpreadElement,
   StringLiteral,
   SwitchCase,
   SwitchStatement,
+  TemplateLiteral,
   ThrowStatement,
+  // TupleExpression,
   TryStatement,
   RegExpLiteral,
   ReturnStatement,
@@ -1217,6 +1224,67 @@ function StringLiteral(node, source, output) {
   }
 }
 
+// `a`
+// a`a`
+// `a ${b} c`;
+function TemplateLiteral(node, source, output) {
+  let shadowMap = [
+    // start `
+    {
+      main: node.original.start,
+      shadow: node.start,
+    },
+    // end `
+    {
+      main: node.original.end - 1,
+      shadow: node.end - 1,
+    },
+  ];
+
+  let expressions = node.expressions.length;
+  if (expressions > 0) {
+    for (let i = 0; i < expressions; i++) {
+      let dollarMain =
+        node.original.quasis[i].start +
+        source
+          .slice(node.original.quasis[i].start, node.original.quasis[i + 1].end)
+          .indexOf("${");
+      let dollarShadow =
+        node.quasis[i].start +
+        output
+          .slice(node.quasis[i].start, node.quasis[i + 1].end)
+          .indexOf("${");
+      shadowMap.push({
+        main: dollarMain,
+        shadow: dollarShadow,
+      });
+      shadowMap.push({
+        main: dollarMain + 1,
+        shadow: dollarShadow + 1,
+      });
+      shadowMap.push({
+        main:
+          node.original.quasis[i].start +
+          source
+            .slice(
+              node.original.quasis[i].start,
+              node.original.quasis[i + 1].end
+            )
+            .indexOf("}"),
+        shadow:
+          node.quasis[i].start +
+          output
+            .slice(node.quasis[i].start, node.quasis[i + 1].end)
+            .indexOf("}"),
+      });
+    }
+  }
+
+  return {
+    shadowMap,
+  };
+}
+
 function NewExpression(node, source, output) {
   let shadowMap = CallExpression(node, source, output).shadowMap;
 
@@ -2108,10 +2176,14 @@ export default function makeShadowMap(node, source, output) {
       node.type === "InterpreterDirective" ||
       node.type === "Import" ||
       node.type === "Super" ||
+      node.type === "TemplateElement" ||
       node.type === "ThisExpression" ||
       node.type === "EmptyStatement")
   ) {
     return;
+    // ignore
+  } else if (node.type === "TaggedTemplateExpression") {
+    return -1;
   } else {
     console.error(
       `unsupported! original: ${node.original.type}, type: ${node.type}`
