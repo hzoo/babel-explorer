@@ -12,6 +12,10 @@ export const shadowMapFunctions = {
   DoWhileStatement,
   ExpressionStatement,
   IfStatement,
+  ForStatement,
+  ForInStatement,
+  ForOfStatement,
+  IfStatement,
   FunctionDeclaration,
   JSXAttribute,
   LabeledStatement,
@@ -36,6 +40,231 @@ export const shadowMapFunctions = {
   // WithStatement,
 };
 
+// for (;;) {}
+// for (var i = 0;;) {}
+// for (var i = 0; i < 5;) {}
+// for (var i = 0; i < 5; i++) {}
+function ForStatement(node, source, output) {
+  let rightMostProp = node =>
+    node.update
+      ? node.update.end
+      : node.test
+      ? node.test.end
+      : node.init
+      ? node.init.end
+      : node.start;
+
+  let shadowMap = [
+    // f
+    {
+      main: node.original.start,
+      shadow: node.start,
+    },
+    // o
+    {
+      main: node.original.start + 1,
+      shadow: node.start + 1,
+    },
+    // r
+    {
+      main: node.original.start + 2,
+      shadow: node.start + 2,
+    },
+    // (
+    {
+      main:
+        node.original.start +
+        source
+          .slice(
+            node.original.start,
+            node.original[node.init ? "init" : "body"].start
+          )
+          .indexOf("("),
+      shadow:
+        node.start +
+        output
+          .slice(node.start, node[node.init ? "init" : "body"].start)
+          .indexOf("("),
+    },
+    // )
+    {
+      main:
+        rightMostProp(node.original) +
+        source
+          .slice(rightMostProp(node.original), node.original.body.start)
+          .indexOf(")"),
+      shadow:
+        rightMostProp(node) +
+        output.slice(rightMostProp(node), node.body.start).indexOf(")"),
+    },
+    // first ;
+    {
+      main:
+        node.original.start +
+        source
+          .slice(node.original.start, node.original.body.start)
+          .indexOf(";"),
+      shadow:
+        node.start + output.slice(node.start, node.body.start).indexOf(";"),
+    },
+    // second ;
+    {
+      main:
+        node.original.start +
+        source
+          .slice(node.original.start, node.original.body.start)
+          .lastIndexOf(";"),
+      shadow:
+        node.start + output.slice(node.start, node.body.start).lastIndexOf(";"),
+    },
+  ];
+
+  return {
+    shadowMap,
+  };
+}
+
+// for (var i in []) {}
+function ForInStatement(node, source, output) {
+  let shadowMap = [
+    // f
+    {
+      main: node.original.start,
+      shadow: node.start,
+    },
+    // o
+    {
+      main: node.original.start + 1,
+      shadow: node.start + 1,
+    },
+    // r
+    {
+      main: node.original.start + 2,
+      shadow: node.start + 2,
+    },
+    // (
+    {
+      main:
+        node.original.start +
+        source
+          .slice(node.original.start, node.original.left.start)
+          .indexOf("("),
+      shadow:
+        node.start + output.slice(node.start, node.left.start).indexOf("("),
+    },
+    // )
+    {
+      main:
+        node.original.right.end +
+        source
+          .slice(node.original.right.end, node.original.body.start)
+          .indexOf(")"),
+      shadow:
+        node.right.end +
+        output.slice(node.right.end, node.body.start).indexOf(")"),
+    },
+  ];
+
+  let inSource =
+    node.original.left.end +
+    source
+      .slice(node.original.left.end, node.original.right.start)
+      .indexOf("in");
+  let inOutput =
+    node.left.end + output.slice(node.left.end, node.right.start).indexOf("in");
+
+  for (let i = 0; i < 2; i++) {
+    shadowMap.push({
+      main: inSource + i,
+      shadow: inOutput + i,
+    });
+  }
+
+  return {
+    shadowMap,
+  };
+}
+
+// for (var x of []) {}
+// async () => {
+//   for await (const a of []) {}
+// };
+function ForOfStatement(node, source, output) {
+  let shadowMap = [
+    // f
+    {
+      main: node.original.start,
+      shadow: node.start,
+    },
+    // o
+    {
+      main: node.original.start + 1,
+      shadow: node.start + 1,
+    },
+    // r
+    {
+      main: node.original.start + 2,
+      shadow: node.start + 2,
+    },
+    // (
+    {
+      main:
+        node.original.start +
+        source
+          .slice(node.original.start, node.original.left.start)
+          .indexOf("("),
+      shadow:
+        node.start + output.slice(node.start, node.left.start).indexOf("("),
+    },
+    // )
+    {
+      main:
+        node.original.right.end +
+        source
+          .slice(node.original.right.end, node.original.body.start)
+          .indexOf(")"),
+      shadow:
+        node.right.end +
+        output.slice(node.right.end, node.body.start).indexOf(")"),
+    },
+  ];
+
+  let awaitSource =
+    node.original.start +
+    source
+      .slice(node.original.start, node.original.left.start)
+      .indexOf("await");
+  let awaitOutput =
+    node.start + output.slice(node.start, node.left.start).indexOf("await");
+
+  for (let i = 0; i < 5; i++) {
+    shadowMap.push({
+      main: awaitSource + i,
+      shadow: awaitOutput + i,
+    });
+  }
+
+  let ofSource =
+    node.original.left.end +
+    source
+      .slice(node.original.left.end, node.original.right.start)
+      .indexOf("of");
+  let ofOutput =
+    node.left.end + output.slice(node.left.end, node.right.start).indexOf("of");
+
+  for (let i = 0; i < 2; i++) {
+    shadowMap.push({
+      main: ofSource + i,
+      shadow: ofOutput + i,
+    });
+  }
+
+  return {
+    shadowMap,
+  };
+}
+
+// while (a) {}
 function WhileStatement(node, source, output) {
   let shadowMap = [...Array(5)].map((_, i) => {
     return {
@@ -73,6 +302,7 @@ function WhileStatement(node, source, output) {
   };
 }
 
+// do {} while (a);
 function DoWhileStatement(node, source, output) {
   let shadowMap = [
     // d

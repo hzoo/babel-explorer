@@ -67,11 +67,15 @@ const profile = (
 //   x
 // };`;
 SOURCE = `
-while (a) asdf;
-while (a) { asdf; }
-do {
-  a;
-} while (i < 5);
+for (;;) {}
+for (var i = 0;;) {}
+for (var i = 0; i < 5;) {}
+for (var i = 0; i < 5; i++) {}
+for (var x of nums) {}
+for (var i in nums) {}
+async () => {
+  for await (const a of []) {}
+};
 `;
 let CONFIG = [
   {
@@ -79,7 +83,7 @@ let CONFIG = [
       [
         "@babel/preset-env",
         {
-          // targets: "chrome 80",
+          targets: "chrome 80",
           loose: true,
           modules: false,
           shippedProposals: true,
