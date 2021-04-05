@@ -67,14 +67,14 @@ const profile = (
 //   x
 // };`;
 SOURCE = `
-for (;;) {}
-for (var i = 0;;) {}
-for (var i = 0; i < 5;) {}
-for (var i = 0; i < 5; i++) {}
-for (var x of nums) {}
-for (var i in nums) {}
-async () => {
-  for await (const a of []) {}
+(do {});
+
+let a = do {
+  if (x > 10) {
+    'big';
+  } else {
+    'small';
+  }
 };
 `;
 let CONFIG = [
@@ -83,10 +83,11 @@ let CONFIG = [
       [
         "@babel/preset-env",
         {
-          targets: "chrome 80",
+          // targets: "chrome 89",
           loose: true,
           modules: false,
           shippedProposals: true,
+          bugfixes: true,
         },
       ],
       [
