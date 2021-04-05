@@ -25,6 +25,7 @@ export const shadowMapFunctions = {
   MetaProperty,
   // NewExpression,
   ObjectExpression,
+  ObjectMethod,
   ObjectProperty,
   SequenceExpression,
   SpreadElement,
@@ -768,6 +769,148 @@ function FunctionDeclaration(node, source, output) {
         node.original.start +
         source.slice(node.original.start, node.original.id.start).indexOf("*"),
       shadow: node.start + output.slice(node.start, node.id.start).indexOf("*"),
+    });
+  }
+
+  return {
+    shadowMap,
+  };
+}
+
+// a() {},
+// async*[b]() {},
+// get a() {},
+// set a(a) {}
+function ObjectMethod(node, source, output) {
+  let parensMain =
+    node.original.params.length === 0
+      ? node.original.key.end +
+        source
+          .slice(node.original.key.end, node.original.body.start)
+          .indexOf("(")
+      : node.original.key.end +
+        source
+          .slice(node.original.key.end, node.original.params[0].start)
+          .indexOf("(");
+
+  let parensShadow =
+    node.params.length === 0
+      ? node.key.end + output.slice(node.key.end, node.body.start).indexOf("(")
+      : node.key.end +
+        output.slice(node.key.end, node.params[0].start).indexOf("(");
+
+  let shadowMap = [
+    {
+      main: parensMain,
+      shadow: parensShadow,
+    },
+    {
+      main:
+        node.original.params.length === 0
+          ? node.original.key.end +
+            source
+              .slice(node.original.key.end, node.original.body.start)
+              .indexOf(")")
+          : node.original.params[node.original.params.length - 1].end +
+            source
+              .slice(
+                node.original.params[node.original.params.length - 1].end,
+                node.original.body.start
+              )
+              .indexOf(")"),
+      shadow:
+        node.params.length === 0
+          ? node.key.end +
+            output.slice(node.key.end, node.body.start).indexOf(")")
+          : node.params[node.params.length - 1].end +
+            output
+              .slice(node.params[node.params.length - 1].end, node.body.start)
+              .indexOf(")"),
+    },
+  ];
+
+  node.params.forEach((param, i) => {
+    if (i < node.params.length - 1) {
+      shadowMap.push({
+        main:
+          node.original.params[i].end +
+          source
+            .slice(
+              node.original.params[i].end,
+              node.original.params[i + 1].start
+            )
+            .indexOf(","),
+        shadow:
+          node.params[i].end +
+          output
+            .slice(node.params[i].end, node.params[i + 1].start)
+            .indexOf(","),
+      });
+    }
+  });
+  let last = node.params.length - 1;
+  if (last > 0) {
+    let mainTrailing = source
+      .slice(node.original.params[last].end, node.original.end)
+      .indexOf(",");
+    let shadowTrailing = output
+      .slice(node.params[last].end, node.end)
+      .indexOf(",");
+    if (shadowTrailing !== -1) {
+      shadowMap.push({
+        main:
+          mainTrailing !== -1
+            ? mainTrailing + node.original.params[last].end
+            : undefined,
+        shadow: shadowTrailing + node.params[last].end,
+      });
+    }
+  }
+
+  if (node.async) {
+    // async
+    [...Array("async".length)].forEach((_, i) => {
+      shadowMap.push({
+        main: node.original.start + i,
+        shadow: node.start + i,
+      });
+    });
+  } else if (node.kind === "get" || node.kind === "set") {
+    // get or set
+    [...Array(3)].forEach((_, i) => {
+      shadowMap.push({
+        main: node.original.start + i,
+        shadow: node.start + i,
+      });
+    });
+  }
+
+  // *
+  if (node.generator) {
+    shadowMap.push({
+      main:
+        node.original.start +
+        source.slice(node.original.start, node.original.key.start).indexOf("*"),
+      shadow:
+        node.start + output.slice(node.start, node.key.start).indexOf("*"),
+    });
+  }
+
+  if (node.computed) {
+    shadowMap.push({
+      main:
+        node.original.start +
+        source.slice(node.original.start, node.original.key.start).indexOf("["),
+      shadow:
+        node.start + output.slice(node.start, node.key.start).indexOf("["),
+    });
+
+    shadowMap.push({
+      main:
+        node.original.key.end +
+        source.slice(node.original.key.end, parensMain).indexOf("]"),
+      shadow:
+        node.key.end + output.slice(node.key.end, parensShadow).indexOf("]"),
     });
   }
 
