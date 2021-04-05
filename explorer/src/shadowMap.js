@@ -759,6 +759,16 @@ function FunctionDeclaration(node, source, output) {
     });
   }
 
+  // *
+  if (node.generator) {
+    shadowMap.push({
+      main:
+        node.original.start +
+        source.slice(node.original.start, node.original.id.start).indexOf("*"),
+      shadow: node.start + output.slice(node.start, node.id.start).indexOf("*"),
+    });
+  }
+
   return {
     shadowMap,
   };
@@ -1636,7 +1646,9 @@ export default function makeShadowMap(node, source, output) {
       node.type === "DecimalLiteral" ||
       node.type === "DebuggerStatement" ||
       node.type === "Directive" ||
+      node.type === "InterpreterDirective" ||
       node.type === "Import" ||
+      node.type === "Super" ||
       node.type === "ThisExpression" ||
       node.type === "EmptyStatement")
   ) {
