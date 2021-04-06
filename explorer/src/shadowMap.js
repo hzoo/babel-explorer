@@ -1,19 +1,39 @@
 // https://github.com/babel/babel/blob/main/packages/babel-parser/ast/spec.md
 export const shadowMapFunctions = {
   ArrayExpression,
+  ArrayPattern,
+  // ArrowFunctionExpression,
+  AssignmentPattern,
   AwaitExpression,
   AssignmentExpression,
   BinaryExpression,
+  BindExpression,
   BlockStatement,
   BreakStatement,
   CallExpression,
   CatchClause,
+  ClassBody,
+  ClassDeclaration,
+  ClassExpression,
+  ClassMethod,
+  ClassPrivateMethod,
+  ClassPrivateProperty,
+  ClassProperty,
   ConditionalExpression,
   ContinueStatement,
+  // Decorator,
   DoExpression,
   DoWhileStatement,
+  ExportAllDeclaration,
+  ExportDefaultDeclaration,
+  ExportNamedDeclaration,
+  ExportNamespaceSpecifier,
+  ExportSpecifier,
   ExpressionStatement,
   IfStatement,
+  ImportDeclaration,
+  ImportNamespaceSpecifier,
+  ImportSpecifier,
   ForStatement,
   ForInStatement,
   ForOfStatement,
@@ -25,28 +45,541 @@ export const shadowMapFunctions = {
   LogicalExpression,
   MemberExpression,
   MetaProperty,
+  // ModuleExpression,
   NewExpression,
   ObjectExpression,
   ObjectMethod,
+  ObjectPattern,
   ObjectProperty,
   OptionalCallExpression,
   OptionalMemberExpression,
   // ParenthesizedExpression,
+  PrivateName,
+  // RecordExpression,
+  RestElement,
   SequenceExpression,
   SpreadElement,
+  StaticBlock,
   StringLiteral,
   SwitchCase,
   SwitchStatement,
+  TemplateLiteral,
   ThrowStatement,
+  // TupleExpression,
   TryStatement,
   RegExpLiteral,
   ReturnStatement,
   UnaryExpression,
   UpdateExpression,
   WhileStatement,
-  // WithStatement,
+  WithStatement,
   YieldExpression,
 };
+
+// class Foo { #foo() {} }
+
+function ClassPrivateMethod(node, source, output) {
+  let shadowMap = ObjectMethod(node, source, output).shadowMap;
+
+  // static
+  if (node.static) {
+    [...Array(6)].forEach((_, i) => {
+      shadowMap.push({
+        main: node.original.start + i,
+        shadow: node.start + i,
+      });
+    });
+  }
+
+  return {
+    shadowMap,
+  };
+}
+
+// class Foo { foo() {} }
+function ClassMethod(node, source, output) {
+  let shadowMap = ObjectMethod(node, source, output).shadowMap;
+
+  // static
+  if (node.static) {
+    [...Array(6)].forEach((_, i) => {
+      shadowMap.push({
+        main: node.original.start + i,
+        shadow: node.start + i,
+      });
+    });
+  }
+
+  return {
+    shadowMap,
+  };
+}
+
+// (class {})
+function ClassExpression(node, source, output) {
+  return ClassDeclaration(node, source, output);
+}
+
+// class A {}
+function ClassDeclaration(node, source, output) {
+  // class
+  let shadowMap = [...Array(5)].map((_, i) => {
+    return {
+      main: node.original.start + i,
+      shadow: node.start + i,
+    };
+  });
+
+  if (node.superClass) {
+    [...Array(7)].forEach((_, i) => {
+      shadowMap.push({
+        main:
+          node.original.start +
+          source
+            .slice(node.original.start, node.original.body.start)
+            .indexOf("extends") +
+          i,
+        shadow:
+          node.start +
+          output.slice(node.start, node.body.start).indexOf("extends") +
+          i,
+      });
+    });
+  }
+
+  return {
+    shadowMap,
+  };
+}
+
+// class Foo { static { 1; } }
+function StaticBlock(node, source, output) {
+  // static
+  let shadowMap = [...Array(6)].map((_, i) => {
+    return {
+      main: node.original.start + i,
+      shadow: node.start + i,
+    };
+  });
+
+  shadowMap.push({
+    main:
+      node.original.start +
+      source.slice(node.original.start, node.original.end).indexOf("{"),
+    shadow: node.start + output.slice(node.start, node.end).indexOf("{"),
+  });
+  shadowMap.push({
+    main:
+      node.original.start +
+      source.slice(node.original.start, node.original.end).lastIndexOf("}"),
+    shadow: node.start + output.slice(node.start, node.end).lastIndexOf("}"),
+  });
+
+  return {
+    shadowMap,
+  };
+}
+
+// class A {}
+function ClassBody(node, source, output) {
+  return BlockStatement(node, source, output);
+}
+
+function PrivateName(node) {
+  return {
+    shadowMap: [
+      {
+        main: node.original.start,
+        shadow: node.start,
+      },
+    ],
+  };
+}
+
+// class A { #a = 1 }
+function ClassPrivateProperty(node, source, output) {
+  return ClassProperty(node, source, output);
+}
+
+// class Foo {
+//   foo;
+//   ["foo"];
+//   static foo = 1;
+// }
+function ClassProperty(node, source, output) {
+  let shadowMap = [];
+
+  if (node.static) {
+    [...Array(6)].map((_, i) => {
+      shadowMap.push({
+        main: node.original.start + i,
+        shadow: node.start + i,
+      });
+    });
+  }
+
+  if (node.computed) {
+    shadowMap.push({
+      main:
+        node.original.start +
+        source.slice(node.original.start, node.original.key.start).indexOf("["),
+      shadow:
+        node.start + output.slice(node.start, node.key.start).indexOf("["),
+    });
+    shadowMap.push({
+      main:
+        node.original.key.end +
+        source.slice(node.original.key.end, node.original.end).indexOf("]"),
+      shadow: node.key.end + output.slice(node.key.end, node.end).indexOf("]"),
+    });
+  }
+
+  if (node.value) {
+    shadowMap.push({
+      main:
+        node.original.key.end +
+        source
+          .slice(node.original.key.end, node.original.value.start)
+          .indexOf("="),
+      shadow:
+        node.key.end +
+        output.slice(node.key.end, node.value.start).indexOf("="),
+    });
+  }
+
+  // ;
+  if (source[node.original.end - 1] === ";" && output[node.end - 1] === ";") {
+    shadowMap.push({ main: node.original.end - 1, shadow: node.end - 1 });
+  }
+
+  return {
+    shadowMap,
+  };
+}
+
+// export * from "foo";
+function ExportAllDeclaration(node, source, output) {
+  // export
+  let shadowMap = [...Array(6)].map((_, i) => {
+    return {
+      main: node.original.start + i,
+      shadow: node.start + i,
+    };
+  });
+
+  shadowMap.push({
+    main:
+      node.original.start +
+      source.slice(node.original.start, node.original.end).indexOf("*"),
+    shadow: node.start + output.slice(node.start, node.end).indexOf("*"),
+  });
+
+  [...Array(4)].map((_, i) => {
+    shadowMap.push({
+      main:
+        node.original.start +
+        source.slice(node.original.start, node.original.end).indexOf("from") +
+        i,
+      shadow:
+        node.start + output.slice(node.start, node.end).indexOf("from") + i,
+    });
+  });
+
+  // ;
+  if (source[node.original.end - 1] === ";" && output[node.end - 1] === ";") {
+    shadowMap.push({ main: node.original.end - 1, shadow: node.end - 1 });
+  }
+
+  return {
+    shadowMap,
+  };
+}
+
+// export default 42;
+function ExportDefaultDeclaration(node, source, output) {
+  // export
+  let shadowMap = [...Array(6)].map((_, i) => {
+    return {
+      main: node.original.start + i,
+      shadow: node.start + i,
+    };
+  });
+
+  [...Array(7)].map((_, i) => {
+    shadowMap.push({
+      main:
+        node.original.start +
+        source
+          .slice(node.original.start, node.original.end)
+          .indexOf("default") +
+        i,
+      shadow:
+        node.start + output.slice(node.start, node.end).indexOf("default") + i,
+    });
+  });
+
+  // ;
+  if (source[node.original.end - 1] === ";" && output[node.end - 1] === ";") {
+    shadowMap.push({ main: node.original.end - 1, shadow: node.end - 1 });
+  }
+
+  return {
+    shadowMap,
+  };
+}
+
+// export let foo = 1;
+// export foo from "foo";
+function ExportNamedDeclaration(node, source, output) {
+  // export
+  let shadowMap = [...Array(6)].map((_, i) => {
+    return {
+      main: node.original.start + i,
+      shadow: node.start + i,
+    };
+  });
+
+  if (node.specifiers.length > 0) {
+    node.specifiers.forEach((_, i) => {
+      if (i < node.specifiers.length - 1) {
+        shadowMap.push({
+          main:
+            node.original.specifiers[i].end +
+            source
+              .slice(node.original.specifiers[i].end, node.original.end)
+              .indexOf(","),
+          shadow:
+            node.specifiers[i].end +
+            output.slice(node.specifiers[i].end, node.end).indexOf(","),
+        });
+      }
+    });
+
+    let hasBrace = source
+      .slice(node.original.start, node.original.end)
+      .indexOf("{");
+
+    if (hasBrace !== -1) {
+      shadowMap.push({
+        main:
+          node.original.start +
+          source.slice(node.original.start, node.original.end).indexOf("{"),
+        shadow: node.start + output.slice(node.start, node.end).indexOf("{"),
+      });
+
+      shadowMap.push({
+        main:
+          node.original.start +
+          source.slice(node.original.start, node.original.end).indexOf("}"),
+        shadow: node.start + output.slice(node.start, node.end).indexOf("}"),
+      });
+    }
+  }
+
+  if (node.source) {
+    [...Array(4)].map((_, i) => {
+      shadowMap.push({
+        main:
+          node.original.start +
+          source.slice(node.original.start, node.original.end).indexOf("from") +
+          i,
+        shadow:
+          node.start + output.slice(node.start, node.end).indexOf("from") + i,
+      });
+    });
+  }
+
+  // ;
+  if (source[node.original.end - 1] === ";" && output[node.end - 1] === ";") {
+    shadowMap.push({ main: node.original.end - 1, shadow: node.end - 1 });
+  }
+
+  return {
+    shadowMap,
+  };
+}
+
+// export * as default from "foo";
+function ExportNamespaceSpecifier(node, source, output) {
+  return {
+    shadowMap: [
+      {
+        main:
+          node.original.start +
+          source
+            .slice(node.original.start, node.original.exported.start)
+            .indexOf("*"),
+        shadow:
+          node.start +
+          output.slice(node.start, node.exported.start).indexOf("*"),
+      },
+      {
+        main:
+          node.original.start +
+          source
+            .slice(node.original.start, node.original.exported.start)
+            .indexOf("as"),
+        shadow:
+          node.start +
+          output.slice(node.start, node.exported.start).indexOf("as"),
+      },
+      {
+        main:
+          node.original.start +
+          source
+            .slice(node.original.start, node.original.exported.start)
+            .indexOf("as") +
+          1,
+        shadow:
+          node.start +
+          output.slice(node.start, node.exported.start).indexOf("as") +
+          1,
+      },
+    ],
+  };
+}
+
+// export { bar as baz2 } from "foo";
+function ExportSpecifier(node, source, output) {
+  if (node.exported.name === node.local.name) {
+    return {
+      shadowMap: [...Array(2)].map((_, i) => {
+        return {
+          main:
+            node.original.start +
+            source.slice(node.original.start, node.original.end).indexOf("as") +
+            i,
+          shadow:
+            node.start + output.slice(node.start, node.end).indexOf("as") + i,
+        };
+      }),
+    };
+  }
+}
+
+// import "foo";
+function ImportDeclaration(node, source, output) {
+  // import
+  let shadowMap = [...Array(6)].map((_, i) => {
+    return {
+      main: node.original.start + i,
+      shadow: node.start + i,
+    };
+  });
+
+  if (node.specifiers.length > 0) {
+    node.specifiers.forEach((_, i) => {
+      if (i < node.specifiers.length - 1) {
+        shadowMap.push({
+          main:
+            node.original.specifiers[i].end +
+            source
+              .slice(node.original.specifiers[i].end, node.original.end)
+              .indexOf(","),
+          shadow:
+            node.specifiers[i].end +
+            output.slice(node.specifiers[i].end, node.end).indexOf(","),
+        });
+      }
+    });
+
+    [...Array(4)].forEach((_, i) => {
+      shadowMap.push({
+        main:
+          node.original.start +
+          source.slice(node.original.start, node.original.end).indexOf("from") +
+          i,
+        shadow:
+          node.start + output.slice(node.start, node.end).indexOf("from") + i,
+      });
+    });
+
+    let hasBrace = source
+      .slice(node.original.start, node.original.end)
+      .indexOf("{");
+
+    if (hasBrace !== -1) {
+      shadowMap.push({
+        main:
+          node.original.start +
+          source.slice(node.original.start, node.original.end).indexOf("{"),
+        shadow: node.start + output.slice(node.start, node.end).indexOf("{"),
+      });
+
+      shadowMap.push({
+        main:
+          node.original.start +
+          source.slice(node.original.start, node.original.end).indexOf("}"),
+        shadow: node.start + output.slice(node.start, node.end).indexOf("}"),
+      });
+    }
+  }
+
+  // ;
+  if (source[node.original.end - 1] === ";" && output[node.end - 1] === ";") {
+    shadowMap.push({ main: node.original.end - 1, shadow: node.end - 1 });
+  }
+
+  return {
+    shadowMap,
+  };
+}
+
+// import * as d from "foo";
+function ImportNamespaceSpecifier(node, source, output) {
+  return {
+    shadowMap: [
+      {
+        main:
+          node.original.start +
+          source
+            .slice(node.original.start, node.original.local.start)
+            .indexOf("*"),
+        shadow:
+          node.start + output.slice(node.start, node.local.start).indexOf("*"),
+      },
+      {
+        main:
+          node.original.start +
+          source
+            .slice(node.original.start, node.original.local.start)
+            .indexOf("as"),
+        shadow:
+          node.start + output.slice(node.start, node.local.start).indexOf("as"),
+      },
+      {
+        main:
+          node.original.start +
+          source
+            .slice(node.original.start, node.original.local.start)
+            .indexOf("as") +
+          1,
+        shadow:
+          node.start +
+          output.slice(node.start, node.local.start).indexOf("as") +
+          1,
+      },
+    ],
+  };
+}
+
+// import { bar as baz2 } from "foo";
+function ImportSpecifier(node, source, output) {
+  if (node.imported.name === node.local.name) {
+    return {
+      shadowMap: [...Array(2)].map((_, i) => {
+        return {
+          main:
+            node.original.start +
+            source.slice(node.original.start, node.original.end).indexOf("as") +
+            i,
+          shadow:
+            node.start + output.slice(node.start, node.end).indexOf("as") + i,
+        };
+      }),
+    };
+  }
+}
 
 // for (;;) {}
 // for (var i = 0;;) {}
@@ -245,11 +778,13 @@ function ForOfStatement(node, source, output) {
   let awaitOutput =
     node.start + output.slice(node.start, node.left.start).indexOf("await");
 
-  for (let i = 0; i < 5; i++) {
-    shadowMap.push({
-      main: awaitSource + i,
-      shadow: awaitOutput + i,
-    });
+  if (awaitSource !== -1) {
+    for (let i = 0; i < 5; i++) {
+      shadowMap.push({
+        main: awaitSource + i,
+        shadow: awaitOutput + i,
+      });
+    }
   }
 
   let ofSource =
@@ -260,11 +795,13 @@ function ForOfStatement(node, source, output) {
   let ofOutput =
     node.left.end + output.slice(node.left.end, node.right.start).indexOf("of");
 
-  for (let i = 0; i < 2; i++) {
-    shadowMap.push({
-      main: ofSource + i,
-      shadow: ofOutput + i,
-    });
+  if (ofSource !== -1) {
+    for (let i = 0; i < 2; i++) {
+      shadowMap.push({
+        main: ofSource + i,
+        shadow: ofOutput + i,
+      });
+    }
   }
 
   return {
@@ -302,6 +839,44 @@ function WhileStatement(node, source, output) {
       shadow:
         node.test.end +
         output.slice(node.test.end, node.body.start).indexOf(")"),
+    }
+  );
+
+  return {
+    shadowMap,
+  };
+}
+
+// with (a) {}
+function WithStatement(node, source, output) {
+  let shadowMap = [...Array(4)].map((_, i) => {
+    return {
+      main: node.original.start + i,
+      shadow: node.start + i,
+    };
+  });
+
+  shadowMap.push(
+    // (
+    {
+      main:
+        node.original.start +
+        source
+          .slice(node.original.start, node.original.object.start)
+          .indexOf("("),
+      shadow:
+        node.start + output.slice(node.start, node.object.start).indexOf("("),
+    },
+    // )
+    {
+      main:
+        node.original.object.end +
+        source
+          .slice(node.original.object.end, node.original.body.start)
+          .indexOf(")"),
+      shadow:
+        node.object.end +
+        output.slice(node.object.end, node.body.start).indexOf(")"),
     }
   );
 
@@ -407,7 +982,6 @@ function ThrowStatement(...args) {
 
 // switch (expr) {}
 // switch (a) { case 'a': a; case 'b': b; }
-// TODO: account for parens (check node.extra.parenthesized)
 function SwitchStatement(node, source, output) {
   // () {}
   let shadowMap = [
@@ -596,14 +1170,8 @@ function TryStatement(node, source, output) {
   };
 }
 
-/*
-interface CatchClause <: Node {
-  type: "CatchClause";
-  param?: Pattern;
-  body: BlockStatement;
-}
-*/
-// TODO: Optional Catch Binding
+// try {} catch {}
+// try {} catch (e) {}
 function CatchClause(node, source, output) {
   let shadowMap = [];
 
@@ -1013,18 +1581,48 @@ function ObjectMethod(node, source, output) {
 
   if (node.async) {
     // async
-    [...Array("async".length)].forEach((_, i) => {
+    [...Array(5)].forEach((_, i) => {
       shadowMap.push({
-        main: node.original.start + i,
-        shadow: node.start + i,
+        main:
+          node.original.start +
+          source
+            .slice(node.original.start, node.original.key.start)
+            .indexOf("async") +
+          i,
+        shadow:
+          node.start +
+          output.slice(node.start, node.key.start).indexOf("async") +
+          i,
       });
     });
-  } else if (node.kind === "get" || node.kind === "set") {
-    // get or set
+  } else if (node.kind === "get") {
     [...Array(3)].forEach((_, i) => {
       shadowMap.push({
-        main: node.original.start + i,
-        shadow: node.start + i,
+        main:
+          node.original.start +
+          source
+            .slice(node.original.start, node.original.key.start)
+            .indexOf("get") +
+          i,
+        shadow:
+          node.start +
+          output.slice(node.start, node.key.start).indexOf("get") +
+          i,
+      });
+    });
+  } else if (node.kind === "set") {
+    [...Array(3)].forEach((_, i) => {
+      shadowMap.push({
+        main:
+          node.original.start +
+          source
+            .slice(node.original.start, node.original.key.start)
+            .indexOf("set") +
+          i,
+        shadow:
+          node.start +
+          output.slice(node.start, node.key.start).indexOf("set") +
+          i,
       });
     });
   }
@@ -1217,6 +1815,67 @@ function StringLiteral(node, source, output) {
   }
 }
 
+// `a`
+// a`a`
+// `a ${b} c`;
+function TemplateLiteral(node, source, output) {
+  let shadowMap = [
+    // start `
+    {
+      main: node.original.start,
+      shadow: node.start,
+    },
+    // end `
+    {
+      main: node.original.end - 1,
+      shadow: node.end - 1,
+    },
+  ];
+
+  let expressions = node.expressions.length;
+  if (expressions > 0) {
+    for (let i = 0; i < expressions; i++) {
+      let dollarMain =
+        node.original.quasis[i].start +
+        source
+          .slice(node.original.quasis[i].start, node.original.quasis[i + 1].end)
+          .indexOf("${");
+      let dollarShadow =
+        node.quasis[i].start +
+        output
+          .slice(node.quasis[i].start, node.quasis[i + 1].end)
+          .indexOf("${");
+      shadowMap.push({
+        main: dollarMain,
+        shadow: dollarShadow,
+      });
+      shadowMap.push({
+        main: dollarMain + 1,
+        shadow: dollarShadow + 1,
+      });
+      shadowMap.push({
+        main:
+          node.original.quasis[i].start +
+          source
+            .slice(
+              node.original.quasis[i].start,
+              node.original.quasis[i + 1].end
+            )
+            .indexOf("}"),
+        shadow:
+          node.quasis[i].start +
+          output
+            .slice(node.quasis[i].start, node.quasis[i + 1].end)
+            .indexOf("}"),
+      });
+    }
+  }
+
+  return {
+    shadowMap,
+  };
+}
+
 function NewExpression(node, source, output) {
   let shadowMap = CallExpression(node, source, output).shadowMap;
 
@@ -1259,6 +1918,8 @@ function OptionalCallExpression(node, source, output) {
 
 // a(a,b,c)
 function CallExpression(node, source, output) {
+  let shadowMap = [];
+
   // for NewExpression
   let hasParen = source
     .slice(
@@ -1268,8 +1929,6 @@ function CallExpression(node, source, output) {
         : node.original.arguments[0].start
     )
     .indexOf("(");
-
-  let shadowMap = [];
 
   if (hasParen !== -1) {
     shadowMap.push(
@@ -1376,6 +2035,12 @@ function LabeledStatement(node, source, output) {
   };
 }
 
+// [...a] = [1]
+function RestElement(node, source, output) {
+  return SpreadElement(node, source, output);
+}
+
+// var a = [...a]
 function SpreadElement(node, source, output) {
   let shadowMap = [...Array(3)].map((_, i) => {
     return {
@@ -1684,7 +2349,6 @@ function LogicalExpression(node, source, output) {
   };
 }
 
-// TODO:
 // x **= y;
 // x &&= y;
 // x ||= y;
@@ -1705,6 +2369,57 @@ function AssignmentExpression(node, source, output) {
           i,
       };
     }),
+  };
+}
+
+// ::a.b;
+// a::b.c;
+function BindExpression(node, source, output) {
+  let shadowMap = [];
+
+  let nodeHasObject = node => (node.object ? node.object.end : node.start);
+
+  let colonMain =
+    nodeHasObject(node.original) +
+    source
+      .slice(nodeHasObject(node.original), node.original.callee.start)
+      .indexOf(":");
+
+  let colonShadow =
+    nodeHasObject(node) +
+    output.slice(nodeHasObject(node), node.callee.start).indexOf(":");
+
+  shadowMap.push(
+    {
+      main: colonMain,
+      shadow: colonShadow,
+    },
+    {
+      main: colonMain + 1,
+      shadow: colonShadow + 1,
+    }
+  );
+
+  return {
+    shadowMap,
+  };
+}
+
+// ({a = 1} = user)
+function AssignmentPattern(node, source, output) {
+  return {
+    shadowMap: [
+      {
+        main:
+          node.original.left.end +
+          source
+            .slice(node.original.left.end, node.original.right.start)
+            .indexOf("="),
+        shadow:
+          node.left.end +
+          output.slice(node.left.end, node.right.start).indexOf("="),
+      },
+    ],
   };
 }
 
@@ -1747,6 +2462,11 @@ function ObjectProperty(node, source, output) {
   };
 }
 
+// let { a, ...b } = c;
+function ObjectPattern(node, source, output) {
+  return ObjectExpression(node, source, output);
+}
+
 function ObjectExpression(node, source, output) {
   let shadowMap = [
     { main: node.original.start, shadow: node.start },
@@ -1758,16 +2478,11 @@ function ObjectExpression(node, source, output) {
         main:
           node.original.properties[i].end +
           source
-            .slice(
-              node.original.properties[i].end,
-              node.original.properties[i + 1].key.start
-            )
+            .slice(node.original.properties[i].end, node.original.end)
             .indexOf(","),
         shadow:
           node.properties[i].end +
-          output
-            .slice(node.properties[i].end, node.properties[i + 1].key.start)
-            .indexOf(","),
+          output.slice(node.properties[i].end, node.end).indexOf(","),
       });
     }
   });
@@ -1830,6 +2545,11 @@ function SequenceExpression(node, source, output) {
   };
 }
 
+// [a, b, ...rest] = [10, 20, 30];
+function ArrayPattern(node, source, output) {
+  return ArrayExpression(node, source, output);
+}
+
 function ArrayExpression(node, source, output) {
   let shadowMap = [
     { main: node.original.start, shadow: node.start }, //
@@ -1840,25 +2560,24 @@ function ArrayExpression(node, source, output) {
   ];
   node.elements.forEach((element, i) => {
     if (i < node.original.elements.length - 1) {
-      if (node.original.elements[i + 1] === null) {
+      if (
+        node.original.elements[i] === null ||
+        node.original.elements[i + 1] === null
+      ) {
         // TODO: sparse arrays
-        throw new Error("TODO: doesn't handle sparse arrays [1,,2] yet");
+        console.error("TODO: doesn't handle sparse arrays [1,,2] yet");
+      } else {
+        shadowMap.push({
+          main:
+            node.original.elements[i].end +
+            source
+              .slice(node.original.elements[i].end, node.original.end)
+              .indexOf(","),
+          shadow:
+            node.elements[i].end +
+            output.slice(node.elements[i].end, node.end).indexOf(","),
+        });
       }
-      shadowMap.push({
-        main:
-          node.original.elements[i].end +
-          source
-            .slice(
-              node.original.elements[i].end,
-              node.original.elements[i + 1].start
-            )
-            .indexOf(","),
-        shadow:
-          node.elements[i].end +
-          output
-            .slice(node.elements[i].end, node.elements[i + 1].start)
-            .indexOf(","),
-      });
     }
   });
   let last = node.elements.length - 1;
@@ -2108,10 +2827,17 @@ export default function makeShadowMap(node, source, output) {
       node.type === "InterpreterDirective" ||
       node.type === "Import" ||
       node.type === "Super" ||
+      node.type === "TemplateElement" ||
       node.type === "ThisExpression" ||
       node.type === "EmptyStatement")
   ) {
     return;
+    // ignore
+  } else if (
+    node.type === "TaggedTemplateExpression" ||
+    node.type === "ImportDefaultSpecifier"
+  ) {
+    return -1;
   } else {
     console.error(
       `unsupported! original: ${node.original.type}, type: ${node.type}`
