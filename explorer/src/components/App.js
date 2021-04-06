@@ -511,7 +511,7 @@ export default function App({
     let size = new Blob([debouncedSource], { type: "text/plain" }).size;
     setSize(size);
     gzipSize(debouncedSource).then(s => setGzip(s));
-  }, [debouncedSource, debouncedPlugin]);
+  }, [debouncedSource, debouncedPlugin, babelConfig]);
 
   const canvas = useRef(null);
 
