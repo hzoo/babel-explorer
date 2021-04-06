@@ -12,6 +12,13 @@ export const shadowMapFunctions = {
   BreakStatement,
   CallExpression,
   CatchClause,
+  ClassBody,
+  ClassDeclaration,
+  ClassExpression,
+  ClassMethod,
+  ClassPrivateMethod,
+  ClassPrivateProperty,
+  ClassProperty,
   ConditionalExpression,
   ContinueStatement,
   // Decorator,
@@ -47,10 +54,12 @@ export const shadowMapFunctions = {
   OptionalCallExpression,
   OptionalMemberExpression,
   // ParenthesizedExpression,
+  PrivateName,
   // RecordExpression,
   RestElement,
   SequenceExpression,
   SpreadElement,
+  StaticBlock,
   StringLiteral,
   SwitchCase,
   SwitchStatement,
@@ -66,6 +75,187 @@ export const shadowMapFunctions = {
   WithStatement,
   YieldExpression,
 };
+
+// class Foo { #foo() {} }
+
+function ClassPrivateMethod(node, source, output) {
+  let shadowMap = ObjectMethod(node, source, output).shadowMap;
+
+  // static
+  if (node.static) {
+    [...Array(6)].forEach((_, i) => {
+      shadowMap.push({
+        main: node.original.start + i,
+        shadow: node.start + i,
+      });
+    });
+  }
+
+  return {
+    shadowMap,
+  };
+}
+
+// class Foo { foo() {} }
+function ClassMethod(node, source, output) {
+  let shadowMap = ObjectMethod(node, source, output).shadowMap;
+
+  // static
+  if (node.static) {
+    [...Array(6)].forEach((_, i) => {
+      shadowMap.push({
+        main: node.original.start + i,
+        shadow: node.start + i,
+      });
+    });
+  }
+
+  return {
+    shadowMap,
+  };
+}
+
+// (class {})
+function ClassExpression(node, source, output) {
+  return ClassDeclaration(node, source, output);
+}
+
+// class A {}
+function ClassDeclaration(node, source, output) {
+  // class
+  let shadowMap = [...Array(5)].map((_, i) => {
+    return {
+      main: node.original.start + i,
+      shadow: node.start + i,
+    };
+  });
+
+  if (node.superClass) {
+    [...Array(7)].forEach((_, i) => {
+      shadowMap.push({
+        main:
+          node.original.start +
+          source
+            .slice(node.original.start, node.original.body.start)
+            .indexOf("extends") +
+          i,
+        shadow:
+          node.start +
+          output.slice(node.start, node.body.start).indexOf("extends") +
+          i,
+      });
+    });
+  }
+
+  return {
+    shadowMap,
+  };
+}
+
+// class Foo { static { 1; } }
+function StaticBlock(node, source, output) {
+  // static
+  let shadowMap = [...Array(6)].map((_, i) => {
+    return {
+      main: node.original.start + i,
+      shadow: node.start + i,
+    };
+  });
+
+  shadowMap.push({
+    main:
+      node.original.start +
+      source.slice(node.original.start, node.original.end).indexOf("{"),
+    shadow: node.start + output.slice(node.start, node.end).indexOf("{"),
+  });
+  shadowMap.push({
+    main:
+      node.original.start +
+      source.slice(node.original.start, node.original.end).lastIndexOf("}"),
+    shadow: node.start + output.slice(node.start, node.end).lastIndexOf("}"),
+  });
+
+  return {
+    shadowMap,
+  };
+}
+
+// class A {}
+function ClassBody(node, source, output) {
+  return BlockStatement(node, source, output);
+}
+
+function PrivateName(node) {
+  return {
+    shadowMap: [
+      {
+        main: node.original.start,
+        shadow: node.start,
+      },
+    ],
+  };
+}
+
+// class A { #a = 1 }
+function ClassPrivateProperty(node, source, output) {
+  return ClassProperty(node, source, output);
+}
+
+// class Foo {
+//   foo;
+//   ["foo"];
+//   static foo = 1;
+// }
+function ClassProperty(node, source, output) {
+  let shadowMap = [];
+
+  if (node.static) {
+    [...Array(6)].map((_, i) => {
+      shadowMap.push({
+        main: node.original.start + i,
+        shadow: node.start + i,
+      });
+    });
+  }
+
+  if (node.computed) {
+    shadowMap.push({
+      main:
+        node.original.start +
+        source.slice(node.original.start, node.original.key.start).indexOf("["),
+      shadow:
+        node.start + output.slice(node.start, node.key.start).indexOf("["),
+    });
+    shadowMap.push({
+      main:
+        node.original.key.end +
+        source.slice(node.original.key.end, node.original.end).indexOf("]"),
+      shadow: node.key.end + output.slice(node.key.end, node.end).indexOf("]"),
+    });
+  }
+
+  if (node.value) {
+    shadowMap.push({
+      main:
+        node.original.key.end +
+        source
+          .slice(node.original.key.end, node.original.value.start)
+          .indexOf("="),
+      shadow:
+        node.key.end +
+        output.slice(node.key.end, node.value.start).indexOf("="),
+    });
+  }
+
+  // ;
+  if (source[node.original.end - 1] === ";" && output[node.end - 1] === ";") {
+    shadowMap.push({ main: node.original.end - 1, shadow: node.end - 1 });
+  }
+
+  return {
+    shadowMap,
+  };
+}
 
 // export * from "foo";
 function ExportAllDeclaration(node, source, output) {
@@ -1391,18 +1581,48 @@ function ObjectMethod(node, source, output) {
 
   if (node.async) {
     // async
-    [...Array("async".length)].forEach((_, i) => {
+    [...Array(5)].forEach((_, i) => {
       shadowMap.push({
-        main: node.original.start + i,
-        shadow: node.start + i,
+        main:
+          node.original.start +
+          source
+            .slice(node.original.start, node.original.key.start)
+            .indexOf("async") +
+          i,
+        shadow:
+          node.start +
+          output.slice(node.start, node.key.start).indexOf("async") +
+          i,
       });
     });
-  } else if (node.kind === "get" || node.kind === "set") {
-    // get or set
+  } else if (node.kind === "get") {
     [...Array(3)].forEach((_, i) => {
       shadowMap.push({
-        main: node.original.start + i,
-        shadow: node.start + i,
+        main:
+          node.original.start +
+          source
+            .slice(node.original.start, node.original.key.start)
+            .indexOf("get") +
+          i,
+        shadow:
+          node.start +
+          output.slice(node.start, node.key.start).indexOf("get") +
+          i,
+      });
+    });
+  } else if (node.kind === "set") {
+    [...Array(3)].forEach((_, i) => {
+      shadowMap.push({
+        main:
+          node.original.start +
+          source
+            .slice(node.original.start, node.original.key.start)
+            .indexOf("set") +
+          i,
+        shadow:
+          node.start +
+          output.slice(node.start, node.key.start).indexOf("set") +
+          i,
       });
     });
   }
