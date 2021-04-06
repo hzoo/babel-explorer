@@ -19,6 +19,9 @@ export const shadowMapFunctions = {
   DoWhileStatement,
   ExpressionStatement,
   IfStatement,
+  ImportDeclaration,
+  ImportNamespaceSpecifier,
+  ImportSpecifier,
   ForStatement,
   ForInStatement,
   ForOfStatement,
@@ -58,6 +61,120 @@ export const shadowMapFunctions = {
   WithStatement,
   YieldExpression,
 };
+
+// import "foo";
+function ImportDeclaration(node, source, output) {
+  // import
+  let shadowMap = [...Array(6)].map((_, i) => {
+    return {
+      main: node.original.start + i,
+      shadow: node.start + i,
+    };
+  });
+
+  if (node.specifiers.length > 0) {
+    node.specifiers.forEach((_, i) => {
+      if (i < node.specifiers.length - 1) {
+        shadowMap.push({
+          main:
+            node.original.specifiers[i].end +
+            source
+              .slice(node.original.specifiers[i].end, node.original.end)
+              .indexOf(","),
+          shadow:
+            node.specifiers[i].end +
+            output.slice(node.specifiers[i].end, node.end).indexOf(","),
+        });
+      }
+    });
+
+    [...Array(4)].forEach((_, i) => {
+      shadowMap.push({
+        main:
+          node.original.start +
+          source.slice(node.original.start, node.original.end).indexOf("from") +
+          i,
+        shadow:
+          node.start + output.slice(node.start, node.end).indexOf("from") + i,
+      });
+    });
+
+    let hasBrace = source
+      .slice(node.original.start, node.original.end)
+      .indexOf("{");
+
+    if (hasBrace) {
+      shadowMap.push({
+        main:
+          node.original.start +
+          source.slice(node.original.start, node.original.end).indexOf("{"),
+        shadow: node.start + output.slice(node.start, node.end).indexOf("{"),
+      });
+
+      shadowMap.push({
+        main:
+          node.original.start +
+          source.slice(node.original.start, node.original.end).indexOf("}"),
+        shadow: node.start + output.slice(node.start, node.end).indexOf("}"),
+      });
+    }
+  }
+
+  // ;
+  if (source[node.original.end - 1] === ";" && output[node.end - 1] === ";") {
+    shadowMap.push({ main: node.original.end - 1, shadow: node.end - 1 });
+  }
+
+  return {
+    shadowMap,
+  };
+}
+
+// import { bar as baz2 } from "foo";
+function ImportNamespaceSpecifier(node, source, output) {
+  return {
+    shadowMap: [
+      {
+        main:
+          node.original.start +
+          source.slice(node.original.start, node.original.end).indexOf("*"),
+        shadow: node.start + output.slice(node.start, node.end).indexOf("*"),
+      },
+      {
+        main:
+          node.original.start +
+          source.slice(node.original.start, node.original.end).indexOf("as"),
+        shadow: node.start + output.slice(node.start, node.end).indexOf("as"),
+      },
+      {
+        main:
+          node.original.start +
+          source.slice(node.original.start, node.original.end).indexOf("as") +
+          1,
+        shadow:
+          node.start + output.slice(node.start, node.end).indexOf("as") + 1,
+      },
+    ],
+  };
+}
+
+// import { bar as baz2 } from "foo";
+function ImportSpecifier(node, source, output) {
+  if (node.imported.name === node.local.name) {
+    return {
+      shadowMap: [...Array(2)].map((_, i) => {
+        return {
+          main:
+            node.original.start +
+            source.slice(node.original.start, node.original.end).indexOf("as") +
+            i,
+          shadow:
+            node.start + output.slice(node.start, node.end).indexOf("as") + i,
+        };
+      }),
+    };
+  }
+}
 
 // for (;;) {}
 // for (var i = 0;;) {}
@@ -2277,7 +2394,10 @@ export default function makeShadowMap(node, source, output) {
   ) {
     return;
     // ignore
-  } else if (node.type === "TaggedTemplateExpression") {
+  } else if (
+    node.type === "TaggedTemplateExpression" ||
+    node.type === "ImportDefaultSpecifier"
+  ) {
     return -1;
   } else {
     console.error(
